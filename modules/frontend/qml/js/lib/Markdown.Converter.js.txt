@@ -1,0 +1,6 @@
+Raw: https://pagedown.googlecode.com/hg/Markdown.Converter.js
+URL: https://code.google.com/p/pagedown/source/browse/Markdown.Converter.js
+Rev: 2a8c75ce3fb5
+Date: Oct 10, 2014
+
+TODO: Replace by Showdown? http://showdownjs.com/

@@ -1,0 +1,239 @@
+
+SimpleQtCryptor is an encryption library for Qt.
+
+Copyright (C) 2010,2011 Gunnar Thorburn
+
+SimpleQtCrypto is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+ParrotShare is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
+S I M P L E   Q T  C R Y P T O R
+
+This is a simple Qt library that implements symetric encryption
+using RC5 or Serpent algorithms
+
+Design goals:
+==========================
+ - Make it very simple to add encryption to a Qt Program
+      (just add this header file and one cpp-file to your Qt project)
+ - Only use Standard Qt functionality (as of Qt 4.5) to ensure portability
+   (should work on Symbian)
+ - Object oriented frontend
+ - Provide "strong" encryption
+
+I know this is a bad idea because:
+ - it is unwise to implement encryption yourself
+ - other implementations are (much) faster
+ - there are good C++ encryption available (boton, cryptcc, openssl)
+ - RC5 is patented (dont use commercially in USA without obtaining a
+   license from RSA - I dont provide such license)
+     o this is why Serpent is included too
+     o you can disable RC5 on compile time to avoid patent issues
+   (serpent is completely in the public domain though)
+
+
+Algorithms:
+===========================
+  Currently the implementation supports three algoritms
+    RC5-32/32/20  (32 bit words, 32 rounds, 20 byte/160bit key)
+    RC5-64/32/20  (64 bit words, 32 rounds, 20 byte/160bit key)
+    SERPENT-32    (32 bit words, 32 rounds, 32 byte/256bit key)
+  More algorithms/variants can be added if needed
+  All algorithms are supposed to be very strong.
+
+About RC5:
+  RC5 is a very simple encryption algorithm.
+  Note that the 32/64 bit versions use different word-sizes and
+    are suitable for different CPUs. They should be be equally strong.
+  They are not compatible, but both versions will be supported on all
+    machines supported by QT.
+
+About Serpent:
+  Serpent was one of the final AES candidates.
+  It is designed for and implemented with 32 bit operations.
+
+
+What algorithm to choose?
+===========================
+All algorithms are secure - you should not need to think about it.
+
+RC5 is covered by US patents. For commercial applications it might
+be best to avoid RC5.
+
+RC5 is faster than Serpent. All Qt-capable system can use both the
+32 and 64 bit version of RC5. 
+
+
+Performance
+===========================
+The benchmark (-b) command tests encryption/decryption without doing
+any streaming or I/O.
+
+				RC5-32	RC5-64	Serpent	(no sbox.h)
+------------------------+----------------------------------------------------
+Athlon II X2 250 3GHz	| enc	4.6s	2.3s	14.6s	(139s)
+512Mb data, Ubuntu	| dec	4.6s	2.3s	14.8s
+------------------------+----------------------------------------------------
+Athlon II X2 250 3GHz	| enc	5.8s	3.2s	22.4s
+512Mb data, Windows7 64	| dec	5.6s	3.2s	20.6s
+------------------------+----------------------------------------------------
+Intel Core i5 2.3GHz	| enc	6.9s	3.4s	19.1s
+512Mb data, Mac OS X	| dec	6.6s	3.3s	19.2s
+------------------------+----------------------------------------------------
+Intel Pentium(M) 2.0Ghz	| enc	10.9s	47s	35s
+512Mb data, Windows7 32	| dec	 9.8s	46s	36s
+------------------------+----------------------------------------------------
+Intel Atom z520 1.33Ghz	| enc	20.2s	83s	113s
+512Mb data, Windows7 32	| dec	19.2s	84s	130s
+------------------------+----------------------------------------------------
+PPC G4 866Mhz		| enc	20.4s	62s	85s
+512Mb data, Mac OS X	| dec	32.9s	61s	83s
+------------------------+----------------------------------------------------
+ARM,QNAP TS109 500Mhz	| enc   8.6s	30.4s 	58.4s	(259s)
+64Mb data, Debian	| dec	8.2s	26.4s	92.7s	(258s)	
+------------------------+----------------------------------------------------
+
+On Windows, Microsoft SDK is used. 
+
+Conclusions on this?
+ - 32 bit machines suffer more from 64 bit, than the other way around
+ - The precomputed sbox works well, especially if CPU has enough cache
+   (precomputed table is about 16kb, Atom and ARM suffers here)
+ - The RC5-32 result for PPC G4 is the result of the compiler only
+   finding out to use assembler instruction for left roll, not right roll.
+ - I am very suprised that Ubuntu/GCC outperformes Windows with
+   Microsoft compiler.
+
+
+Now encrypting/decrypting a 512Mb file, on the Athlon machine.
+First value is user time for encryption/decryption.
+Second value is real time, including a sync command.
+First line is encrypt. Second line is decrypt.
+
+								OPENSSL
+RC5-32/CBC	RC5-64/CBC	RC5-64/CFB	Serpent/CFB	AES-128-CFB
+-----------------------------------------------------------------------------
+6.5s / 9.0s	3.5s / 6.1s	3.2s / 5.9s	16.4s / 17.6s	5.8s / 7.8s
+6.3s / 9.5s	3.5s / 6.1s	3.1s / 5.7s	16.4s / 19.0s	6.0s / 8.3s
+-----------------------------------------------------------------------------
+
+
+Quickstart - encrypt data
+===========================
+Set up key:
+  QSharedPointer k(new Key(QString("My secret key")));
+Create Encryptor
+  Encryptor e(k, RC5_32_32_20, ModeCFB);
+Encrypt first data
+  Error er;
+  QByteArray cipher;
+  er = e.encrypt(mySecretByteArray, cipher, false);
+  if ( er ) {
+     // something went wrong
+Encrypt more data
+  er (e.encrypt(moreSecretData, cipher, true));
+
+
+
+
+Quickstart - decrypt data
+===========================
+Set up key:
+  QSharedPointer k(new Key(QString("My secret key")));
+Create DecryptorWizard (autodetects parameters)
+  DecryptorWizard dw(k);
+And a decryptor
+  Decryptor d;
+Decrypt first data
+  Error er;
+  QByteArray plain;
+  er = dw.decrypt(myEncryptedSecretData, plain, d, false);
+  if ( er ) {
+     // something went wrong
+Decrypt more data
+  d->decrypt(moreEncryptedData, plain, true));
+
+
+
+Include in your project
+===========================
+The following three files should be included in your project
+  simpleqtcryptor.h
+  simpleqtcryptor.cpp
+  serpent_sbox.h
+In the beginning of simpleqtcryptor.h there are three defines that
+you may want to change:
+  WITHRC5 - remove if you dont want (patended RC5)
+  WITH_SERPENT_PRINT_SBOX_H - this enables functionality
+    (both in library and main program) to print the serpent_sbox.h
+    header file. It is safe to include this functionality, but
+    also completely unnecessary.
+  WITH_SERPENT_INCLUDE_FAST_SBOX - makes the library use precomputed
+    sbox table from serpent_sbox.h. If you want a slightly smaller
+    library with much slower performance (for serpent only) this
+    is the way.
+
+
+
+Building it 
+===========================
+Basically qmake & make should build it.
+Note that the testing library and the main program does not work
+without RC5. Excluding RC5 is only for your own projects.
+
+
+Usage details:
+===========================
+There are 3 layers accessible to the programmer
+
+3. Feature layer (recommended)
+    - message headers add features
+       o automatically choose correct algorithm and mode
+       o makes it possible to determine if a key is correct
+
+2. Mode layer
+    - CFB mode of operation suitable for encryption of streams
+    - CBC mode of operation
+   Handles padding and Initialization Vectors
+
+1. Block layer
+    - Encrypt or decrypt a word with a size given by the
+      actual algorithm
+
+
+
+
+Implementation details:
+===========================
+  - little endian words are assumed (big endian machines
+     work, with little performance penalty)
+
+
+  - Feature layer adds a header to the message making it
+    slightly larger. The format of the encrypte message is:
+
+      ALGORITHM:MODE:[OPTIONS:]:DATA
+
+    where ALGORITHM = RC5/32/32/20, RC5/64/32/20 or SERPENT/32
+               MODE = CFB, CBC
+               DATA = plaintext
+
+  - The benefit is that
+     a) it is possible to verify that the correct key
+        is used (otherwise the header doesnt decrypt)
+     b) it is possible to autodetect algorithm, mode
+        and key by trying different combinations
+
+

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Start asocial frontend application
+
+BASEDIR=$(dirname `readlink -f $0`)
+LD_LIBRARY_PATH="${BASEDIR}/lib" "${BASEDIR}/asocial.bin" $@

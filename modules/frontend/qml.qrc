@@ -1,0 +1,27 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/PasswordRequest.qml</file>
+        <file>qml/Components/Button.qml</file>
+        <file>qml/Accounts.qml</file>
+        <file>qml/Account.qml</file>
+        <file>qml/Profile.qml</file>
+        <file>qml/Components/ScrollBar.qml</file>
+        <file>qml/js/account.js</file>
+        <file>qml/Components/EditableText.qml</file>
+        <file>qml/Components/ActionWait.qml</file>
+        <file>qml/js/profile.js</file>
+        <file>qml/Components/EditableInput.qml</file>
+        <file>qml/js/markdown.lib.js</file>
+        <file>qml/js/lib/Markdown.Converter.js</file>
+        <file>qml/Components/ShowEvent.qml</file>
+        <file>qml/Components/LineOfLife.qml</file>
+        <file>qml/js/lineoflife.js</file>
+        <file>qml/Components/LineOfLife/AxisCursor.qml</file>
+        <file>qml/Components/LineOfLife/AxisMark.qml</file>
+        <file>qml/Components/LineOfLife/EventMark.qml</file>
+        <file>qml/UserInteraction.qml</file>
+        <file>qml/js/userinteraction.js</file>
+        <file>qml/Components/ActionMenu.qml</file>
+    </qresource>
+</RCC>

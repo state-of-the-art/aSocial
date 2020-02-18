@@ -97,7 +97,7 @@ automatically).
     ```
 3. Install the required dependencies (tclsh - sqlcipher build):
     ```
-    docker$ sudo apt update ; sudo apt install -y libssl-dev clang-format-10 tclsh
+    docker$ sudo apt update ; sudo DEBIAN_FRONTEND=noninteractive apt install -y clang-format-10 tclsh
     ```
 4. Create build directory:
     ```
@@ -125,7 +125,7 @@ automatically).
     ```
 3. Install the required dependencies (tclsh - sqlcipher build):
     ```
-    docker$ sudo apt update ; sudo apt install -y libssl-dev clang-format-10 tclsh
+    docker$ sudo apt update ; sudo DEBIAN_FRONTEND=noninteractive apt install -y clang-format-10 tclsh
     ```
 4. Create build directory:
     ```
