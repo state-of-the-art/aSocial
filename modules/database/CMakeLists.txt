@@ -1,13 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
 
-project(${PROJECT_NAME}-database LANGUAGES CXX)
+project(asocial-database LANGUAGES CXX)
 
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(../../common.cmake)
 
 find_package(Qt5 COMPONENTS Core Sql REQUIRED)
 
@@ -17,8 +12,8 @@ file(GLOB_RECURSE Library_H RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.h" "in
 
 add_library(${PROJECT_NAME} SHARED ${Library_CPP} ${Library_H})
 
-include(lib/leveldb.cmake)
-include(lib/qsqlcipher.cmake)
+include(libs/leveldb.cmake)
+include(libs/qsqlcipher.cmake)
 
 # Strip binary for release builds
 if(CMAKE_BUILD_TYPE STREQUAL Release)
@@ -26,3 +21,6 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
 endif()
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Qt5::Core Qt5::Sql)
+
+# Add the other modules include paths
+target_include_directories(${PROJECT_NAME} PUBLIC ${MODULES_INCLUDE_DIRS})

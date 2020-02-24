@@ -1,13 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
 
-project(${PROJECT_NAME}-settings LANGUAGES CXX)
+project(asocial-settings LANGUAGES CXX)
 
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(../../common.cmake)
 
 find_package(Qt5 COMPONENTS Core REQUIRED)
 
@@ -23,3 +18,6 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
 endif()
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Qt5::Core)
+
+# Add the other modules include paths
+target_include_directories(${PROJECT_NAME} PUBLIC ${MODULES_INCLUDE_DIRS})

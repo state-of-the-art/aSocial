@@ -1,13 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
 
-project(${PROJECT_NAME}-crypto LANGUAGES CXX)
+project(asocial-crypto LANGUAGES CXX)
 
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(../../common.cmake)
 
 find_package(Qt5 COMPONENTS Core REQUIRED)
 
@@ -15,16 +10,18 @@ find_package(Qt5 COMPONENTS Core REQUIRED)
 file(GLOB_RECURSE Library_CPP RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.cpp")
 file(GLOB_RECURSE Library_H RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.h" "include/*.h")
 
-include(lib/simpleqtcryptor.cmake)
+include(libs/simpleqtcryptor.cmake)
 
 add_library(${PROJECT_NAME} SHARED ${Library_CPP} ${Library_H})
-
-include(../../lib/openssl.cmake)
 
 # Strip binary for release builds
 if(CMAKE_BUILD_TYPE STREQUAL Release)
   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:${PROJECT_NAME}>)
 endif()
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Qt5::Core ExOpenSSL::Crypto ExOpenSSL::SSL)
-target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/simpleqtcryptor" "${EX_OPENSSL_INCLUDE_DIR}")
+target_link_directories(${PROJECT_NAME} PUBLIC ${LIBS_LIB_DIRS_${BUILD_ABI}})
+target_link_libraries(${PROJECT_NAME} PUBLIC Qt5::Core libcrypto.so libssl.so)
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/simpleqtcryptor" ${LIBS_INCLUDE_DIRS_${BUILD_ABI}})
+
+# Add the other modules include paths
+target_include_directories(${PROJECT_NAME} PUBLIC ${MODULES_INCLUDE_DIRS})

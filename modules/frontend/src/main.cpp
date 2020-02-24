@@ -10,12 +10,12 @@
 #include <android/log.h>
 #endif
 
-void printLogMessage(int priority, QString msg)
+void printLogMessage(int priority, const QString &msg)
 {
 #ifdef Q_OS_ANDROID
-    __android_log_print(priority, "asocial", msg.toLocal8Bit().constData());
+    __android_log_print(priority, "asocial", "%s", msg.toLocal8Bit().constData());
 #else
-    ::std::fprintf(stderr, "Error: %s", msg.toLocal8Bit().constData());
+    ::std::fprintf(stderr, "%s", msg.toLocal8Bit().constData());
 #endif
 }
 
@@ -26,6 +26,9 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &, const QString &
             printLogMessage(3, QString("[aSocial %1] %2\n")
                                    .arg(QDateTime::currentDateTime().toString("dd.MM.yy hh:mm:ss.zzz"))
                                    .arg(msg));
+            break;
+        case QtInfoMsg:
+            printLogMessage(5, QString("[aSocial] Info: %1\n").arg(msg));
             break;
         case QtWarningMsg:
             printLogMessage(5, QString("[aSocial] Warning: %1\n").arg(msg));

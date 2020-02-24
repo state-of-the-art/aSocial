@@ -145,7 +145,7 @@ class Encryptor : public QObject {
     Q_OBJECT
 public:
     Encryptor(QSharedPointer<Key> k, Algorithm a, Mode m, Checksum c);
-    ~Encryptor();   
+    ~Encryptor();
     Error encrypt(const QByteArray &plain, QByteArray &cipher, bool end);
     void reset();
 private:

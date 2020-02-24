@@ -93,19 +93,22 @@ automatically).
     ```
 2. Run the docker container:
     ```
-    host$ docker run -it --rm --name project-build --volume="${PWD}/asocial:/home/user/project:ro" rabits/qt:5.14-desktop
+    host$ docker run -it --rm --volume="${PWD}/asocial:/home/user/project:ro" rabits/qt:5.14-desktop
     ```
-3. Install the required dependencies (tclsh - sqlcipher build):
+3. Install the required build dependencies (tclsh - sqlcipher build):
     ```
-    docker$ sudo apt update ; sudo DEBIAN_FRONTEND=noninteractive apt install -y clang-format-10 tclsh
+    docker$ sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y gnupg2 tclsh
+    docker$ curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+    docker$ echo 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main' | sudo tee /etc/apt/sources.list.d/llvm-10.list
+    docker$ sudo apt update ; sudo apt install -y clang-format-10
     ```
 4. Create build directory:
     ```
-    docker$ mkdir build && cd build
+    docker$ mkdir -p build && cd build
     ```
 5. Generate the build scripts
     ```
-    docker$ cmake ../project -G Ninja "-DCMAKE_PREFIX_PATH:PATH=${QT_DESKTOP}"
+    docker$ cmake ../project -G Ninja -DCMAKE_BUILD_TYPE:STRING=Release "-DCMAKE_PREFIX_PATH:PATH=${QT_DESKTOP}"
     ```
 6. Build the binaries:
     ```
@@ -121,19 +124,22 @@ automatically).
     ```
 2. Run the android docker container:
     ```
-    host$ docker run -it --rm --name project-build --volume="${PWD}/asocial:/home/user/project:ro" rabits/qt:5.14-android
+    host$ docker run -it --rm --volume="${PWD}/asocial:/home/user/project:ro" rabits/qt:5.14-android
     ```
-3. Install the required dependencies (tclsh - sqlcipher build):
+3. Install the required build dependencies (build-essential, tclsh - sqlcipher build; imagemagick - images rasterization):
     ```
-    docker$ sudo apt update ; sudo DEBIAN_FRONTEND=noninteractive apt install -y clang-format-10 tclsh
+    docker$ sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y gnupg2 build-essential tclsh imagemagick
+    docker$ curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+    docker$ echo 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main' | sudo tee /etc/apt/sources.list.d/llvm-10.list
+    docker$ sudo apt update ; sudo apt install -y clang-format-10
     ```
 4. Create build directory:
     ```
-    docker$ mkdir build && cd build
+    docker$ mkdir -p build && cd build
     ```
-5. Generate the build scripts
+5. Generate the build scripts (All available ABIs: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`)
     ```
-    docker$ cmake ../project -G Ninja "-DCMAKE_PREFIX_PATH:PATH=${QT_ANDROID}" "-DCMAKE_TOOLCHAIN_FILE:PATH=${ANDROID_NDK_ROOT}/build/cmake/android.toolchain.cmake" "-DANDROID_ABI:STRING=${ANDROID_NDK_TOOLCHAIN_ABI}" -DANDROID_NATIVE_API_LEVEL:STRING=29
+    docker$ cmake ../project -G Ninja -DCMAKE_BUILD_TYPE:STRING=Release -DANDROID_ABI:STRING=armeabi-v7a -DANDROID_BUILD_ABI_arm64-v8a:BOOL=ON -DANDROID_BUILD_ABI_x86:BOOL=ON -DANDROID_BUILD_ABI_x86_64:BOOL=ON -DANDROID_NATIVE_API_LEVEL:STRING=${ANDROID_NATIVE_API_LEVEL} "-DANDROID_NDK:PATH=${ANDROID_NDK_ROOT}" "-DCMAKE_PREFIX_PATH:PATH=${QT_ANDROID}" "-DCMAKE_FIND_ROOT_PATH:STRING=${QT_ANDROID}" "-DCMAKE_TOOLCHAIN_FILE:PATH=${ANDROID_NDK_ROOT}/build/cmake/android.toolchain.cmake"
     ```
 6. Build the binaries:
     ```
