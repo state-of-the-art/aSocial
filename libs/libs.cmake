@@ -2,11 +2,10 @@ cmake_minimum_required(VERSION 3.13)
 
 # List of the dirs and add as subdirs
 file(GLOB children RELATIVE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_LIST_DIR}/*)
-set(project_libs_list "")
-
+unset(LIBS_LIST)
 foreach(child ${children})
   if(IS_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/${child})
-    list(APPEND project_libs_list "${child}")
+    list(APPEND LIBS_LIST "${child}")
   endif()
 endforeach()
 
@@ -18,7 +17,7 @@ foreach(abi ${BUILD_ABIS})
 endforeach()
 
 include(ExternalProject)
-foreach(lib ${project_libs_list})
+foreach(lib ${LIBS_LIST})
   message("Configure lib: ${lib}")
 
   set(LIB_BASE_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/libs/${lib})
@@ -75,10 +74,5 @@ foreach(lib ${project_libs_list})
     list(APPEND LIBS_LIB_DIRS_${abi} "${LIB_RESULT_DIR}/lib")
     list(APPEND LIBS_INCLUDE_DIRS_${abi} "${LIB_RESULT_DIR}/include")
     list(APPEND LIBS_DEPENDS lib_${lib}_${abi})
-
-    #add_library(${PROJECT_NAME}-${module}_${abi} SHARED IMPORTED)
-    #set_target_properties(${PROJECT_NAME}-${module}_${abi}
-    #    PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/${module}/libs/${abi}/lib${PROJECT_NAME}-${module}_${abi}.so)
-    #add_dependencies(${PROJECT_NAME}-${module}_${abi} module_${PROJECT_NAME}_${module})
   endforeach()
 endforeach()

@@ -13,14 +13,8 @@ file(GLOB_RECURSE Execution_H RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.h" "
 if(ANDROID)
   find_package(Qt5 COMPONENTS AndroidExtras REQUIRED)
   add_library(${PROJECT_NAME} SHARED ${Execution_CPP} ${Execution_H} "${CMAKE_CURRENT_SOURCE_DIR}/qml.qrc")
-  set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/android" CACHE INTERNAL "")
 else()
   add_executable(${PROJECT_NAME} ${Execution_CPP} ${Execution_H} "${CMAKE_CURRENT_SOURCE_DIR}/qml.qrc")
-endif()
-
-# Strip binary for release builds
-if(CMAKE_BUILD_TYPE STREQUAL Release)
-  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:${PROJECT_NAME}>)
 endif()
 
 # Dependencies build

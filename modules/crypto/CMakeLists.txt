@@ -14,11 +14,6 @@ include(libs/simpleqtcryptor.cmake)
 
 add_library(${PROJECT_NAME} SHARED ${Library_CPP} ${Library_H})
 
-# Strip binary for release builds
-if(CMAKE_BUILD_TYPE STREQUAL Release)
-  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:${PROJECT_NAME}>)
-endif()
-
 target_link_directories(${PROJECT_NAME} PUBLIC ${LIBS_LIB_DIRS_${BUILD_ABI}})
 target_link_libraries(${PROJECT_NAME} PUBLIC Qt5::Core libcrypto.so libssl.so)
 target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/simpleqtcryptor" ${LIBS_INCLUDE_DIRS_${BUILD_ABI}})

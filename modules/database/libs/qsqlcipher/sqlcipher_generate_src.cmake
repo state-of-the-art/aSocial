@@ -3,10 +3,10 @@ cmake_minimum_required(VERSION 3.5)
 set(SQLCIPHER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(SQLCIPHER_INCLUDE_DIR "${SQLCIPHER_GEN_DIR}/include")
 
-set(libs_include_dirs ${LIBS_INCLUDE_DIRS_${BUILD_ABI}})
-list(TRANSFORM libs_include_dirs PREPEND -I) # TODO: potential error when >1 lib in the list
+set(libs_include_dirs )
+string(JOIN " -I" libs_include_dirs "" ${LIBS_INCLUDE_DIRS_${BUILD_ABI}})
 set(sqlcipher_opts --enable-shared=no --enable-tempstore=yes --with-crypto-lib=none --disable-tcl
-  CFLAGS=-DSQLITE_HAS_CODEC\ -DSQLCIPHER_CRYPTO_OPENSSL\ -fPIC\ ${libs_include_dirs}
+  "CFLAGS=-DSQLITE_HAS_CODEC -DSQLCIPHER_CRYPTO_OPENSSL -fPIC ${libs_include_dirs}"
 )
 
 include(ExternalProject)

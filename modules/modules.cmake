@@ -73,10 +73,11 @@ foreach(module ${MODULES_LIST})
   )
 
   foreach(abi ${BUILD_ABIS})
-    add_library(${PROJECT_NAME}-${module}_${abi} SHARED IMPORTED)
-    set_target_properties(${PROJECT_NAME}-${module}_${abi}
-      PROPERTIES IMPORTED_LOCATION ${MODULES_BIN_DIR}/${module}/lib/${abi}/lib${PROJECT_NAME}-${module}_${abi}.so)
-    add_dependencies(${PROJECT_NAME}-${module}_${abi} module_${module})
+    set(module_target_name "${PROJECT_NAME}-${module}_${abi}")
+    add_library(${module_target_name} SHARED IMPORTED)
+    set_target_properties(${module_target_name}
+      PROPERTIES IMPORTED_LOCATION ${MODULES_BIN_DIR}/${module}/lib/${abi}/lib${module_target_name}.so)
+    add_dependencies(${module_target_name} module_${module})
   endforeach()
 endforeach()
 
@@ -111,15 +112,17 @@ set(CMAKE_SHARED_LINKER_FLAGS \"${CMAKE_SHARED_LINKER_FLAGS}\" CACHE STRING \"Li
 endif()
 
 message("Configure main module ${BUILD_MAIN_MODULE}")
+set(ANDROID_PACKAGE_SOURCE_DIR "${MODULES_BIN_DIR}/${BUILD_MAIN_MODULE}/android" CACHE INTERNAL "")
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/${BUILD_MAIN_MODULE})
 
 # Add deps on the modules for the main module
 foreach(module ${MODULES_LIST})
   foreach(abi ${BUILD_ABIS})
-    if(abi STREQUAL BUILD_ABI)
-      add_dependencies(${PROJECT_NAME}-${BUILD_MAIN_MODULE} ${PROJECT_NAME}-${module}_${abi})
-    else()
-      add_dependencies(${PROJECT_NAME}-${BUILD_MAIN_MODULE}-${abi}-builder ${PROJECT_NAME}-${module}_${abi})
+    set(main_target_name "${PROJECT_NAME}-${BUILD_MAIN_MODULE}")
+    if(NOT abi STREQUAL BUILD_ABI)
+      set(main_target_name "${main_target_name}-${abi}-builder")
     endif()
+
+    add_dependencies(${main_target_name} ${PROJECT_NAME}-${module}_${abi})
   endforeach()
 endforeach()

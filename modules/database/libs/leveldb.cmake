@@ -43,10 +43,5 @@ add_library(ExLevelDB STATIC IMPORTED)
 set_target_properties(ExLevelDB PROPERTIES IMPORTED_LOCATION ${INSTALL_DIR}/lib/libleveldb.a)
 add_dependencies(ExLevelDB ex_leveldb)
 
-# Strip binary for release builds
-if(CMAKE_BUILD_TYPE STREQUAL Release)
-  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:ExLevelDB>)
-endif()
-
 # Link dependency to the project
 target_link_libraries(${PROJECT_NAME} PRIVATE ExLevelDB)
