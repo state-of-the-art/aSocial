@@ -1,5 +1,7 @@
 # aSocial
 
+[![Join the chat at https://gitter.im/state-of-the-art/aSocial](https://badges.gitter.im/state-of-the-art/aSocial.svg)](https://gitter.im/state-of-the-art/aSocial?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Open source private distributed social network application with focus on security, control and local store of social
 information.
 
