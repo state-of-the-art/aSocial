@@ -1,13 +1,15 @@
-#include "UiGuiPlugin.h"
+#include "CommToxPlugin.h"
 
 #include <QLoggingCategory>
+#include "tox/tox.h"
 
-Q_LOGGING_CATEGORY(C, "UI-GUI Plugin")
+Q_LOGGING_CATEGORY(C, "COMM-TOX Plugin")
 
 Plugin* Plugin::s_pInstance = nullptr;
 
 QString Plugin::name() const
 {
+    qCDebug(C) << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
     return QLatin1String(C().categoryName());
 }
 

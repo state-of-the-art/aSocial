@@ -14,5 +14,5 @@ endforeach()
 
 foreach(plugin ${PLUGINS_LIST})
     message("Configure plugin: ${plugin}")
-    add_subdirectory("${_plugins_dir}/${plugin}" "${PLUGINS_BIN_DIR}")
+    add_subdirectory("${_plugins_dir}/${plugin}" "${PLUGINS_BIN_DIR}/${plugin}")
 endforeach()

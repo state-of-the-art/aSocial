@@ -13,6 +13,7 @@ Q_LOGGING_CATEGORY(plugins, "Plugins")
 #include <QPluginLoader>
 
 #include "plugin/UiPluginInterface.h"
+#include "plugin/CommPluginInterface.h"
 
 Plugins* Plugins::s_pInstance = nullptr;
 
@@ -177,7 +178,7 @@ void Plugins::refreshPluginsList()
 
             qCDebug(plugins) << "  loading plugin:" << lib_name;
             bool loaded = addPlugin<UiPluginInterface>(qobject_cast<UiPluginInterface *>(plugin), plugin);
-            //loaded = addPlugin<PointCloudSourceInterface>(qobject_cast<PointCloudSourceInterface *>(plugin), plugin) || loaded;
+            loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface *>(plugin), plugin) || loaded;
 
             if( !loaded ) {
                 plugin_loader.unload();
