@@ -3,14 +3,14 @@
 #include <QLoggingCategory>
 #include "tox/tox.h"
 
-Q_LOGGING_CATEGORY(C, "COMM-TOX Plugin")
+Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
 Plugin* Plugin::s_pInstance = nullptr;
 
 QString Plugin::name() const
 {
     qCDebug(C) << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
-    return QLatin1String(C().categoryName());
+    return QLatin1String(PLUGIN_NAME);
 }
 
 QStringList Plugin::requirements() const

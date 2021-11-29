@@ -2,13 +2,13 @@
 
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(C, "UI-GUI Plugin")
+Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
 Plugin* Plugin::s_pInstance = nullptr;
 
 QString Plugin::name() const
 {
-    return QLatin1String(C().categoryName());
+    return QLatin1String(PLUGIN_NAME);
 }
 
 QStringList Plugin::requirements() const

@@ -1,6 +1,8 @@
 #ifndef COMMPLUGININTERFACE_H
 #define COMMPLUGININTERFACE_H
 
+// General communication interface which allow to transfer data from one point to another
+
 #include <QStringList>
 #include "PluginInterface.h"
 

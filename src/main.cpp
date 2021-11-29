@@ -54,5 +54,11 @@ int main(int argc, char *argv[])
         qCDebug(Cm, "aSocial - GUI mode");
     }
 
+    // Test cli ui
+    Settings::I()->setting("plugins.ui.cmd.active", true);
+    Plugins::I()->settingActivePlugin("plugins.ui.cmd.active", "ui-cmd");
+    Plugins::I()->activateInterface("ui-cmd", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));
+    qCDebug(Cm, "UI Plugin activated");
+
     return app->exec();
 }

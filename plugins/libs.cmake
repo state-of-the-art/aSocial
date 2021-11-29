@@ -20,24 +20,5 @@ foreach(lib ${LIBS_LIST})
 
     include(${_libs_dir}/${lib}/config.cmake)
 
-    #include(FetchContent)
-    #FetchContent_Declare(lib_${lib}
-    #  URL      ${lib_${lib}_url}
-    #  URL_HASH ${lib_${lib}_hash}
-    #)
-    #FetchContent_Populate(lib_${lib}_sources)
-    #FetchContent_MakeAvailable()
-    #ExternalProject_Add(lib_${lib}_sources
-    #  URL               ${lib_${lib}_url}
-    #  URL_HASH          ${lib_${lib}_hash}
-    #  DOWNLOAD_DIR      libs/_download
-    #  SOURCE_DIR        "${LIBS_SRC_DIR}/${lib}"
-    #  UPDATE_COMMAND ""
-    #  PATCH_COMMAND ""
-    #  CONFIGURE_COMMAND ""
-    #  BUILD_COMMAND ""
-    #  INSTALL_COMMAND ""
-    #)
-
     add_subdirectory("${_libs_dir}/${lib}")
 endforeach()

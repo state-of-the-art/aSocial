@@ -15,7 +15,8 @@ file(GLOB_RECURSE Execution_CPP RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.cp
 file(GLOB_RECURSE Execution_H RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.h" "include/*.h")
 file(GLOB_RECURSE Execution_TS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "i18n/*.ts")
 
-qt_add_executable(${PROJECT_NAME} ${Execution_CPP})
+qt_add_executable(${PROJECT_NAME} ${Execution_CPP} ${Execution_H})
+
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core)
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
