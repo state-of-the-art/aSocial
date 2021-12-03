@@ -81,7 +81,7 @@ for the real money (attached to the ticket) or just for fun. So let's see how th
 
 ### License
 
-Repository and it's content is covered by `Apache v2.0` - so anyone can use it without any concerns.
+Repository and it's content is covered by `GPL v3.0`, so make sure you provide the sources.
 
 If you will have some time - it will be great to see your changes merged to the original repository -
 but it's your choice, no pressure.
