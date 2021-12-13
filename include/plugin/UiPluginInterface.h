@@ -12,6 +12,9 @@ class UiPluginInterface : virtual public PluginInterface
 {
 public:
     static QLatin1String type() { return QLatin1String(UiPluginInterface_iid); }
+
+    virtual bool startUI() = 0;
+    virtual bool stopUI() = 0;
 };
 
 Q_DECLARE_INTERFACE(UiPluginInterface, UiPluginInterface_iid)

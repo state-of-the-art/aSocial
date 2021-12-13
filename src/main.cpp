@@ -11,6 +11,8 @@ Q_LOGGING_CATEGORY(Cm, "main")
 #include "plugins.h"
 #include "settings.h"
 
+#include "plugin/UiPluginInterface.h"
+
 int main(int argc, char *argv[])
 {
     qCDebug(Cm, "Init v%s", PROJECT_VERSION);
@@ -25,7 +27,7 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOptions({
-        {"no-gui", QCoreApplication::translate("main", "Do not load UI plugins")},
+        {"no-gui", QCoreApplication::translate("main", "Load CMD instead of GUI in case GUI is available")},
     });
     parser.process(*app.data());
 
@@ -58,6 +60,9 @@ int main(int argc, char *argv[])
     Settings::I()->setting("plugins.ui.cmd.active", true);
     Plugins::I()->settingActivePlugin("plugins.ui.cmd.active", "ui-cmd");
     Plugins::I()->activateInterface("ui-cmd", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));
+    UiPluginInterface* plugin = qobject_cast<UiPluginInterface *>(Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-cmd"));
+    plugin->startUI();
+
     qCDebug(Cm, "UI Plugin activated");
 
     return app->exec();

@@ -22,6 +22,10 @@ public:
     bool deinit() override;
     bool configure() override;
 
+    // UiPluginInterface
+    bool startUI() override;
+    bool stopUI() override;
+
 signals:
     void appNotice(QString msg) override;
     void appWarning(QString msg) override;

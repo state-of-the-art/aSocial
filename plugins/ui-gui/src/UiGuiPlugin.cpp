@@ -58,3 +58,17 @@ bool Plugin::configure()
     qCDebug(C) << __func__;
     return true;
 }
+
+bool Plugin::startUI()
+{
+    qCDebug(C) << __func__;
+
+    return true;
+}
+
+bool Plugin::stopUI()
+{
+    qCDebug(C) << __func__;
+
+    return true;
+}

@@ -2,7 +2,10 @@
 #define PLUGIN_H
 
 #include <QObject>
+
 #include "plugin/UiPluginInterface.h"
+
+class UiWorker;
 
 class Plugin : public QObject, public UiPluginInterface
 {
@@ -22,9 +25,16 @@ public:
     bool deinit() override;
     bool configure() override;
 
+    // UiPluginInterface
+    bool startUI() override;
+    bool stopUI() override;
+
 signals:
     void appNotice(QString msg) override;
     void appWarning(QString msg) override;
     void appError(QString msg) override;
+
+private:
+    UiWorker* ui_thread;
 };
 #endif // PLUGIN_H
