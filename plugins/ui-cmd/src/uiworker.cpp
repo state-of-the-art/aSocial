@@ -23,10 +23,18 @@ void UiWorker::configure()
                 out << "QR code:\n";
                 qrcodegen::QrCode qr = qrcodegen::QrCode::encodeText(text.data(), qrcodegen::QrCode::Ecc::MEDIUM);
 
-                int border = 4;
-                for (int y = -border; y < qr.getSize() + border; y++) {
+                int border = 2;
+                for (int y = -border; y < qr.getSize() + border; y+=2) {
                     for (int x = -border; x < qr.getSize() + border; x++) {
-                        out << (qr.getModule(x, y) ? "██" : "  ");
+                        if( qr.getModule(x, y) && qr.getModule(x, y+1) ) {
+                            out << " ";
+                        } else if( qr.getModule(x, y) ) {
+                            out << "▄";
+                        } else if( qr.getModule(x, y+1) ) {
+                            out << "▀";
+                        } else {
+                            out << "█";
+                        }
                     }
                     out << std::endl;
                 }
