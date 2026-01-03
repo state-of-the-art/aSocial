@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/sh -e
 # Script builds asocial using docker qt image
 
 BASEDIR=$(dirname `readlink -f $0`)
 
-docker run -it --rm -v "${BASEDIR}:/home/user/project:ro" -v "${PWD}:/home/user/out:rw" stateoftheartio/qt6:6.10-gcc-aqt \
+docker run -i --rm -v "${BASEDIR}:/home/user/project:ro" -v "${PWD}:/home/user/out:rw" stateoftheartio/qt6:6.10-gcc-aqt \
     sh -ec '
 sudo apt update
 sudo apt install -y libgl-dev libvulkan-dev pkg-config file
