@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=aSocial
+Exec=asocial %f
+Icon=asocial
+Comment=Distributed and secure social network
+Categories=Utility;
+Terminal=true
+StartupNotify=true

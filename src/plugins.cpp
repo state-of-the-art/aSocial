@@ -152,12 +152,21 @@ void Plugins::settingChanged(const QString &key, const QVariant &value)
 
 void Plugins::refreshPluginsList()
 {
+    // By default uses simple structure where plugins located near the executable
     QStringList plugins_dirs = { QCoreApplication::applicationDirPath().append("/plugins") };
+    plugins_dirs.append(QCoreApplication::applicationDirPath().append("/../share/asocial/plugins"));
+    // TODO: Could be dangerous to load plugins from everywhere - maybe by default load
+    // only the trusted ones or implement plugin vendors and signatures?
+    plugins_dirs.append(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+
     QStringList filters = { "libasocial-plugin-*" };
 
     for( const QString &path : plugins_dirs ) {
-        qCDebug(plugins) << "Listing plugins from directory:" << path;
         QDir dir = QDir(path);
+        if( !dir.exists() ) {
+            continue;
+        }
+        qCDebug(plugins) << "Listing plugins from directory:" << path;
         dir.setNameFilters(filters);
         QStringList libs = dir.entryList(QDir::Files);
         for( const QString &lib_name : libs ) {

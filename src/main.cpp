@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     qCDebug(Cm, "Init v%s", PROJECT_VERSION);
 
     QScopedPointer<QCoreApplication> app(new QCoreApplication(argc, argv));
-    QCoreApplication::setOrganizationName("State Of The Art");
+    QCoreApplication::setOrganizationName("State-Of-The-Art");
     QCoreApplication::setOrganizationDomain("state-of-the-art.io");
     QCoreApplication::setApplicationName("aSocial");
     QCoreApplication::setApplicationVersion(PROJECT_VERSION);
@@ -61,6 +61,10 @@ int main(int argc, char *argv[])
     Plugins::I()->settingActivePlugin("plugins.ui.cmd.active", "ui-cmd");
     Plugins::I()->activateInterface("ui-cmd", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));
     UiPluginInterface* plugin = qobject_cast<UiPluginInterface *>(Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-cmd"));
+    if( plugin == nullptr ) {
+        qCFatal(Cm, "Unable to locate UI plugin");
+        return 1;
+    }
     plugin->startUI();
 
     qCDebug(Cm, "UI Plugin activated");

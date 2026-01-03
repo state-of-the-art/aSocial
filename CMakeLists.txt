@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(asocial LANGUAGES CXX VERSION 0.1.0)
+project(asocial VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Common parameters
 include(common.cmake)

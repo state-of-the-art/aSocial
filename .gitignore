@@ -72,3 +72,9 @@ Thumbs.db
 *.exe
 
 CMakeLists.txt.user
+
+# Build directory
+/build
+
+# Result for desktop build
+/aSocial-x86_64.AppImage

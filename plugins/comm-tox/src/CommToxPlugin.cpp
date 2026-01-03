@@ -9,7 +9,6 @@ Plugin* Plugin::s_pInstance = nullptr;
 
 QString Plugin::name() const
 {
-    qCDebug(C) << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
     return QLatin1String(PLUGIN_NAME);
 }
 
@@ -27,6 +26,7 @@ bool Plugin::init()
     qCDebug(C) << __func__;
     Plugin::s_pInstance = this;
 
+    qCDebug(C) << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
     // TODO: Init here
 
     qCDebug(C) << "init() done";

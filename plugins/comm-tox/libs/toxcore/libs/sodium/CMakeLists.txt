@@ -13,7 +13,7 @@ ExternalProject_Add(lib_${PROJECT_NAME}
   URL_HASH          ${lib_${PROJECT_NAME}_hash}
   PREFIX            "${CMAKE_BINARY_DIR}/_build"
   INSTALL_DIR       "${LIBS_RESULT_DIR}"
-  PATCH_COMMAND     ./autogen.sh
+  #PATCH_COMMAND     ./autogen.sh
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --disable-shared --prefix=<INSTALL_DIR>
   BUILD_COMMAND     make -j${CPU_N}
   INSTALL_COMMAND   make -j${CPU_N} install

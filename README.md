@@ -9,22 +9,25 @@ information.
 
 ## About
 
-The general purpose of the application is to replace all the centralized social networks &
-messengers and allow the users to never store their information ini just one place. aSocial was born
-from the idea of complete control over social information, liberated from spam/ad, simplify
-connection between people and fight censorship. Storing the information on the user's devices, using
-strong cryptography with an ability of plausible deniability, integration the Bitcoin network will
-allow us to solve the issues we see everyday in the huge centralized social providers.
+The general purpose of the aSocial is to replace all the centralized social networks & messengers
+and allow the users to never store their information ini just one place. aSocial was born from the
+idea of complete control over social information, liberated from spam/ad, simplify connection
+between people and fight censorship. Storing the information on the user's devices, using strong
+cryptography with an ability of plausible deniability, integration the Bitcoin network will allow
+us to solve the issues we see everyday in the huge centralized social providers.
 
 ### History
 
-The project was started as typical social 12/28/2013 and mutated to distributed and found itself 10/17/2014. The POC
-was focused on UI, but some basic components were also prepared. Stopped due to breaking Qt changes, not ready
-Lightning network (second layer of Bitcoin for microtransactions) & and overall project complexity was stopped
-03/30/2016.
-
-The lessons have been learned and rerun the aSocial development was started with SDD and searching for people who can
-understand & help with thinking and development.
+* 12/28/2013 - The project was started as typical social
+* 10/17/2014 - Mutated into distributed one and found itself. The POC was focused on UI, but some
+  basic components were also prepared.
+* 03/30/2016 - Stopped due to breaking Qt changes, not ready Lightning network (second layer of
+  Bitcoin for microtransactions) and overall project complexity impossible to drag by one person.
+* 01/31/2021 - The lessons have been learned and rerun the aSocial development was started with SDD
+  and searching for people who can understand & help with thinking and development. Unfortunately
+  noone reached out and the project was stopped again.
+* 01/01/2026 - AI assistants raise and a year of successfull usage gave an idea of resurrecting the
+  project development.
 
 ## Usage
 
@@ -92,10 +95,24 @@ but it's your choice, no pressure.
 
 1. Clone the repository:
     ```
-    $ git clone https://github.com/state-of-the-art/asocial.git && mkdir -p out
+    $ git clone https://github.com/state-of-the-art/asocial.git
     ```
+2. Run the build script from any empty directory:
+    ```
+    $ ./asocial/build.sh
+    ```
+3. Locate the AppImage (desktop by default) in the current directory:
+    ```
+    $ ./aSocial-x86_64.AppImage --help
+    main: Init v0.1.0
+    Usage: ./aSocial-x86_64.AppImage [options]
 
-TODO
+    Options:
+      -h, --help     Displays help on commandline options.
+      --help-all     Displays help, including generic Qt options.
+      -v, --version  Displays version information.
+      --no-gui       Load CMD instead of GUI in case GUI is available
+    ```
 
 ## Privacy policy
 
