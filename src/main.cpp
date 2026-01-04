@@ -10,6 +10,7 @@ Q_LOGGING_CATEGORY(Cm, "main")
 
 #include "plugins.h"
 #include "settings.h"
+#include "core.h"
 
 #include "plugin/UiPluginInterface.h"
 
@@ -42,11 +43,14 @@ int main(int argc, char *argv[])
         }
     }
 
-    qCDebug(Cm, "Init plugins...");
+    qCInfo(Cm, "Init plugins...");
     Plugins::I();
 
-    qCDebug(Cm, "Init settings...");
+    qCInfo(Cm, "Init settings...");
     Settings::I();
+
+    qCInfo(Cm, "Init core...");
+    Core::I()->setDatabasePlugin("database-json");
 
     if( parser.isSet("no-gui") ) {
         // Init console application

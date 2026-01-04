@@ -1,4 +1,4 @@
 # libcli configuration
-set(lib_cli_version 2.0.0) # Aug 25, 2021
+set(lib_cli_version 2.2.0) # Oct 25, 2024
 set(lib_cli_url https://github.com/daniele77/cli/archive/refs/tags/v${lib_cli_version}.tar.gz)
-set(lib_cli_hash SHA256=0fac3c9fab4527e6141f8fae92dabbd575b6cc71c42c3de76cb28725df68919a)
+set(lib_cli_hash SHA256=67c6329471cd5a98b9ab29da0012f94f61497f0b60591bb0ab714d4c09c4f2b0)

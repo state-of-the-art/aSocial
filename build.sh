@@ -3,12 +3,27 @@
 
 BASEDIR=$(dirname `readlink -f $0`)
 
-docker run -i --rm -v "${BASEDIR}:/home/user/project:ro" -v "${PWD}:/home/user/out:rw" stateoftheartio/qt6:6.10-gcc-aqt \
-    sh -ec '
-sudo apt update
-sudo apt install -y libgl-dev libvulkan-dev pkg-config file
+# Check if we have no image for the build
+if [ ! "$(docker images -q asocial:build)" ]; then
+    docker build -t asocial:build -f "$BASEDIR/docker/Dockerfile.build" "$BASEDIR/docker"
+else
+    # Check if the image is fresh in comparison to the dockerfile
+    docker_image_ts=$(date +%s --date "$(docker image inspect --format "{{.Created}}" asocial:build)")
+    dockerfile_ts=$(stat -c '%Y' "$BASEDIR/docker/Dockerfile.build")
+    if [ "$docker_image_ts" -lt "$dockerfile_ts" ]; then
+        docker build -t asocial:build -f "$BASEDIR/docker/Dockerfile.build" "$BASEDIR/docker"
+    fi
+fi
 
-qt-cmake ./project -G Ninja -B ./build
+# Build the project
+docker run -i --rm \
+    -v "${BASEDIR}:/home/user/project:ro" \
+    -v "${BASEDIR}/build/downloads:/home/user/downloads:rw" \
+    -v "${PWD}:/home/user/out:rw" \
+    asocial:build \
+    sh -ec '
+sudo chmod -R o+rwX ./downloads
+qt-cmake ./project -G Ninja -B ./build -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
 cmake --build ./build
 
 linuxdeploy --appdir ./deploy --plugin qt \

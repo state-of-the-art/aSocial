@@ -4,8 +4,6 @@
 #include <QObject>
 #include <QMap>
 
-#include "PluginInterface.h"
-
 class Plugins
     : public QObject
 {

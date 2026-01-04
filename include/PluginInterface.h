@@ -3,6 +3,7 @@
 
 #include <QtPlugin>
 #include <QStringList>
+#include "CoreInterface.h"
 
 #define PluginInterface_iid "io.stateoftheart.asocial.PluginInterface"
 
@@ -36,6 +37,13 @@ public:
     virtual bool init() = 0;
 
     /**
+     * @brief Passes the Core object to interact with the platform
+     * Called during plugin initialization
+     * @param core - ref to the Core object
+     */
+    void setCore(CoreInterface* core) { m_core = core; };
+
+    /**
      * @brief Executed during plugin deactivation
      */
     virtual bool deinit() = 0;
@@ -61,6 +69,8 @@ protected:
      * @param value
      */
     void setInitialized(bool value) { m_initialized = value; }
+
+    CoreInterface* m_core;
 
 private:
     bool m_initialized = false;

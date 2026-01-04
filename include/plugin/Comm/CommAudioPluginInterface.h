@@ -4,7 +4,7 @@
 // Audio communication interface to send and receive audio files
 
 #include <QStringList>
-#include "PluginInterface.h"
+#include "../CommPluginInterface.h"
 
 #define CommAudioPluginInterface_iid "io.stateoftheart.asocial.plugin.CommAudioPluginInterface"
 

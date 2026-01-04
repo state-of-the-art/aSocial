@@ -14,6 +14,8 @@ Q_LOGGING_CATEGORY(plugins, "Plugins")
 
 #include "plugin/UiPluginInterface.h"
 #include "plugin/CommPluginInterface.h"
+#include "plugin/DatabasePluginInterface.h"
+#include "core.h"
 
 Plugins* Plugins::s_pInstance = nullptr;
 
@@ -89,6 +91,7 @@ bool Plugins::activateInterface(const QString &name, const QLatin1String &interf
         qCWarning(plugins) << __func__ << "Unable to locate plugin interface to activate" << name << plugin_if << plugin;
         return false;
     }
+    plugin_if->setCore(Core::I());
     plugin_if->init();
     if( !m_plugins_active[interface_id].contains(plugin) ) {
         m_plugins_active[interface_id].append(plugin);
@@ -188,6 +191,7 @@ void Plugins::refreshPluginsList()
             qCDebug(plugins) << "  loading plugin:" << lib_name;
             bool loaded = addPlugin<UiPluginInterface>(qobject_cast<UiPluginInterface *>(plugin), plugin);
             loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface *>(plugin), plugin) || loaded;
+            loaded = addPlugin<DatabasePluginInterface>(qobject_cast<DatabasePluginInterface *>(plugin), plugin) || loaded;
 
             if( !loaded ) {
                 plugin_loader.unload();

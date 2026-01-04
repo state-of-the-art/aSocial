@@ -4,11 +4,11 @@
 // Simple text communication interface
 
 #include <QStringList>
-#include "PluginInterface.h"
+#include "../CommPluginInterface.h"
 
 #define CommTextPluginInterface_iid "io.stateoftheart.asocial.plugin.CommTextPluginInterface"
 
-class CommTextPluginInterface : virtual public PluginInterface
+class CommTextPluginInterface : virtual public CommPluginInterface
 {
 public:
     static QLatin1String type() { return QLatin1String(CommTextPluginInterface_iid); }

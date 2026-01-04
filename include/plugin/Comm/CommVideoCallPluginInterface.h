@@ -4,11 +4,11 @@
 // Video communication interface to make the video calls
 
 #include <QStringList>
-#include "PluginInterface.h"
+#include "../CommPluginInterface.h"
 
 #define CommVideoCallPluginInterface_iid "io.stateoftheart.asocial.plugin.CommVideoCallPluginInterface"
 
-class CommVideoCallPluginInterface : virtual public PluginInterface
+class CommVideoCallPluginInterface : virtual public CommPluginInterface
 {
 public:
     static QLatin1String type() { return QLatin1String(CommVideoCallPluginInterface_iid); }

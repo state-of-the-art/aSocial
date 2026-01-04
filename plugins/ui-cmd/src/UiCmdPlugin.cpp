@@ -28,6 +28,7 @@ bool Plugin::init()
     Plugin::s_pInstance = this;
 
     ui_thread = new UiWorker();
+    ui_thread->setCore(m_core);
 
     configure();
 

@@ -1,0 +1,10 @@
+# Helper dockerfile contains necessary tools to ease env initialization
+FROM stateoftheartio/qt6:6.10-gcc-aqt
+
+# Install required dependencies for Qt and build process
+# * libgl-dev libvulkan-dev - for Qt GUI
+# * pkg-config - used to get lib dependencies for tox & other plugins
+# * file - used by appimagetool to build the package
+RUN sudo apt -qq update && sudo apt -q install -y libgl-dev libvulkan-dev pkg-config file \
+    && sudo apt -qq clean \
+    && sudo rm -rf /var/lib/apt/lists/*

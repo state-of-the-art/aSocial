@@ -2,7 +2,7 @@
 #define COMMVIDEOPLUGININTERFACE_H
 
 #include <QStringList>
-#include "PluginInterface.h"
+#include "../CommPluginInterface.h"
 
 #define CommVideoPluginInterface_iid "io.stateoftheart.asocial.plugin.CommVideoPluginInterface"
 

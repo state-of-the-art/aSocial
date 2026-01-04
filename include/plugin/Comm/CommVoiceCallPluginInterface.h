@@ -4,7 +4,7 @@
 // Voice communication interface to make the phone calls
 
 #include <QStringList>
-#include "PluginInterface.h"
+#include "../CommPluginInterface.h"
 
 #define CommVoiceCallPluginInterface_iid "io.stateoftheart.asocial.plugin.CommVoiceCallPluginInterface"
 

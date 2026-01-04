@@ -4,7 +4,7 @@
 // Data communication interface to transfer binaries and files
 
 #include <QStringList>
-#include "PluginInterface.h"
+#include "../CommPluginInterface.h"
 
 #define CommDataPluginInterface_iid "io.stateoftheart.asocial.plugin.CommDataPluginInterface"
 

@@ -14,4 +14,8 @@ add_definitions(-DPROJECT_VERSION="${PROJECT_VERSION}")
 add_definitions(-DQT_NO_FOREACH)
 add_definitions(-DQT_DISABLE_DEPRECATED_BEFORE=0x060000)
 
+# Variable useful for download cache
+if(NOT DEFINED LIBS_DOWNLOAD_CACHE_DIR)
+    set(LIBS_DOWNLOAD_CACHE_DIR ${CMAKE_BINARY_DIR}/../downloads)
+endif()
 set(LIBS_RESULT_DIR ${CMAKE_BINARY_DIR}/libs)
