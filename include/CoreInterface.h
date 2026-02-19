@@ -5,7 +5,7 @@
 #include <QVariantMap>
 #include <QStringList>
 
-class DatabasePluginInterface;
+class DBKVPluginInterface;
 
 /**
  * Abstract interface for Core functionality that plugins can use
@@ -17,7 +17,7 @@ public:
     virtual ~CoreInterface() {}
 
     // Database management
-    virtual DatabasePluginInterface* getDatabase() const = 0;
+    virtual DBKVPluginInterface* getDatabase() const = 0;
 
     // Profile management
     virtual QString getCurrentProfileId() const = 0;

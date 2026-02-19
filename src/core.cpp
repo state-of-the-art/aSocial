@@ -21,7 +21,7 @@ Core::~Core()
     qCDebug(Cc) << "Core singleton destroyed";
 }
 
-DatabasePluginInterface* Core::getDatabase() const
+DBKVPluginInterface* Core::getDatabase() const
 {
     return m_database;
 }
@@ -30,11 +30,11 @@ void Core::setDatabasePlugin(const QString& pluginName)
 {
     // Enable database plugin
     Settings::I()->setting("plugins.database.json.active", true);
-    Plugins::I()->settingActivePlugin("plugins.database.json.active", "database-json");
-    Plugins::I()->activateInterface("database-json", QLatin1String("io.stateoftheart.asocial.plugin.DatabasePluginInterface"));
+    Plugins::I()->settingActivePlugin("plugins.database.json.active", "dbkv-json");
+    Plugins::I()->activateInterface("dbkv-json", QLatin1String("io.stateoftheart.asocial.plugin.DBKVPluginInterface"));
 
-    m_database = qobject_cast<DatabasePluginInterface*>(
-        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DatabasePluginInterface", pluginName));
+    m_database = qobject_cast<DBKVPluginInterface*>(
+        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBKVPluginInterface", pluginName));
 
     if (!m_database) {
         qCWarning(Cc) << "Failed to load database plugin:" << pluginName;

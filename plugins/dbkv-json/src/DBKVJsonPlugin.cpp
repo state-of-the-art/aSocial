@@ -1,4 +1,4 @@
-#include "DatabaseJsonPlugin.h"
+#include "DBKVJsonPlugin.h"
 
 #include <QStandardPaths>
 #include <QJsonDocument>
@@ -7,32 +7,32 @@
 #include <QLoggingCategory>
 #include <QByteArray>
 
-Q_LOGGING_CATEGORY(Djp, "DatabaseJsonPlugin")
+Q_LOGGING_CATEGORY(Djp, "DBKVJsonPlugin")
 
-DatabaseJsonPlugin::DatabaseJsonPlugin()
+DBKVJsonPlugin::DBKVJsonPlugin()
     : m_dataDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/database")
 {
-    qCDebug(Djp) << "DatabaseJsonPlugin created";
+    qCDebug(Djp) << "DBKVJsonPlugin created";
 }
 
-DatabaseJsonPlugin::~DatabaseJsonPlugin()
+DBKVJsonPlugin::~DBKVJsonPlugin()
 {
-    qCDebug(Djp) << "DatabaseJsonPlugin destroyed";
+    qCDebug(Djp) << "DBKVJsonPlugin destroyed";
 }
 
-QString DatabaseJsonPlugin::name() const
+QString DBKVJsonPlugin::name() const
 {
-    return "database-json";
+    return "dbkv-json";
 }
 
-QStringList DatabaseJsonPlugin::requirements() const
+QStringList DBKVJsonPlugin::requirements() const
 {
     return QStringList();
 }
 
-bool DatabaseJsonPlugin::init()
+bool DBKVJsonPlugin::init()
 {
-    qCDebug(Djp) << "Initializing database-json plugin";
+    qCDebug(Djp) << "Initializing dbkv-json plugin";
 
     // Create data directory if it doesn't exist
     if (!m_dataDir.exists()) {
@@ -48,20 +48,20 @@ bool DatabaseJsonPlugin::init()
     return true;
 }
 
-bool DatabaseJsonPlugin::deinit()
+bool DBKVJsonPlugin::deinit()
 {
-    qCDebug(Djp) << "Deinitializing database-json plugin";
+    qCDebug(Djp) << "Deinitializing dbkv-json plugin";
     setInitialized(false);
     return true;
 }
 
-bool DatabaseJsonPlugin::configure()
+bool DBKVJsonPlugin::configure()
 {
-    qCDebug(Djp) << "Configuring database-json plugin";
+    qCDebug(Djp) << "Configuring dbkv-json plugin";
     return true;
 }
 
-QStringList DatabaseJsonPlugin::listObjects(const QString &prefix)
+QStringList DBKVJsonPlugin::listObjects(const QString &prefix)
 {
     QStringList profiles;
     QStringList filters = {"profile_*.json"};
@@ -78,7 +78,7 @@ QStringList DatabaseJsonPlugin::listObjects(const QString &prefix)
     return profiles;
 }
 
-bool DatabaseJsonPlugin::storeObject(const QString& key, QVariantMap& object)
+bool DBKVJsonPlugin::storeObject(const QString& key, QVariantMap& object)
 {
     if (!isInitialized()) {
         qCWarning(Djp) << "Plugin not initialized";
@@ -104,7 +104,7 @@ bool DatabaseJsonPlugin::storeObject(const QString& key, QVariantMap& object)
     return true;
 }
 
-bool DatabaseJsonPlugin::retrieveObject(const QString& key, QVariantMap& object)
+bool DBKVJsonPlugin::retrieveObject(const QString& key, QVariantMap& object)
 {
     if (!isInitialized()) {
         qCWarning(Djp) << "Plugin not initialized";
@@ -127,7 +127,7 @@ bool DatabaseJsonPlugin::retrieveObject(const QString& key, QVariantMap& object)
     return true;
 }
 
-bool DatabaseJsonPlugin::objectExists(const QString& key)
+bool DBKVJsonPlugin::objectExists(const QString& key)
 {
     if (!isInitialized()) {
         return false;
@@ -137,7 +137,7 @@ bool DatabaseJsonPlugin::objectExists(const QString& key)
     return QFile::exists(filePath);
 }
 
-bool DatabaseJsonPlugin::deleteObject(const QString& key)
+bool DBKVJsonPlugin::deleteObject(const QString& key)
 {
     if (!isInitialized()) {
         qCWarning(Djp) << "Plugin not initialized";
@@ -152,7 +152,7 @@ bool DatabaseJsonPlugin::deleteObject(const QString& key)
     return true; // Object doesn't exist, consider it deleted
 }
 
-QString DatabaseJsonPlugin::getObjectFilePath(const QString& key) const
+QString DBKVJsonPlugin::getObjectFilePath(const QString& key) const
 {
     return m_dataDir.absoluteFilePath(key + ".json");
 }

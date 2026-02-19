@@ -1,25 +1,25 @@
-#ifndef DATABASEPLUGININTERFACE_H
-#define DATABASEPLUGININTERFACE_H
+#ifndef DBKVPLUGININTERFACE_H
+#define DBKVPLUGININTERFACE_H
 
 #include "PluginInterface.h"
 
 #include <QVariantMap>
 #include <QStringList>
 
-#define DatabasePluginInterface_iid "io.stateoftheart.asocial.plugin.DatabasePluginInterface"
+#define DBKVPluginInterface_iid "io.stateoftheart.asocial.plugin.DBKVPluginInterface"
 
 /**
- * Interface for database plugins that handle account storage
+ * Interface for database plugins that handle unencrypted storage
  */
-class DatabasePluginInterface : public PluginInterface
+class DBKVPluginInterface : public PluginInterface
 {
 public:
-    virtual ~DatabasePluginInterface() {};
+    virtual ~DBKVPluginInterface() {};
 
     /**
      * @brief Return plugin type
      */
-    static QLatin1String type() { return QLatin1String(DatabasePluginInterface_iid); }
+    static QLatin1String type() { return QLatin1String(DBKVPluginInterface_iid); }
 
     /**
      * @brief List available objects
@@ -59,6 +59,6 @@ public:
     virtual bool deleteObject(const QString& key) = 0;
 };
 
-Q_DECLARE_INTERFACE(DatabasePluginInterface, DatabasePluginInterface_iid)
+Q_DECLARE_INTERFACE(DBKVPluginInterface, DBKVPluginInterface_iid)
 
-#endif // DATABASEPLUGININTERFACE_H
+#endif // DBKVPLUGININTERFACE_H

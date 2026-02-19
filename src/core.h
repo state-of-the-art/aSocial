@@ -5,7 +5,7 @@
 #include <QVariantMap>
 #include <QUuid>
 #include "CoreInterface.h"
-#include "plugin/DatabasePluginInterface.h"
+#include "plugin/DBKVPluginInterface.h"
 
 class Core : public QObject, public CoreInterface
 {
@@ -21,7 +21,7 @@ public:
     inline static void destroyI() { delete s_pInstance; }
 
     // Database management
-    DatabasePluginInterface* getDatabase() const override;
+    DBKVPluginInterface* getDatabase() const override;
     void setDatabasePlugin(const QString& pluginName);
 
     // Profile management
@@ -45,7 +45,7 @@ private:
 
     static Core* s_pInstance;
 
-    DatabasePluginInterface* m_database;
+    DBKVPluginInterface* m_database;
     QString m_currentProfileId;
 };
 
