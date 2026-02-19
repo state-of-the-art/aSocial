@@ -15,6 +15,8 @@ else
     fi
 fi
 
+#    -v "${BASEDIR}/build/docker:/home/user/build:rw" \
+
 # Build the project
 docker run -i --rm \
     -v "${BASEDIR}:/home/user/project:ro" \
@@ -22,8 +24,9 @@ docker run -i --rm \
     -v "${PWD}:/home/user/out:rw" \
     asocial:build \
     sh -ec '
-sudo chmod -R o+rwX ./downloads
-qt-cmake ./project -G Ninja -B ./build -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
+[ -d build ] || mkdir -p build
+sudo chmod -R o+rwX ./downloads ./build
+qt-cmake ./project -G Ninja -B ./build -DCMAKE_BUILD_TYPE=Release -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
 cmake --build ./build
 
 linuxdeploy --appdir ./deploy --plugin qt \
