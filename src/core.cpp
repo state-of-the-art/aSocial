@@ -11,7 +11,8 @@ Core* Core::s_pInstance = nullptr;
 
 Core::Core(QObject *parent)
     : QObject(parent)
-    , m_database(nullptr)
+    , m_dbkv(nullptr)
+    , m_dbsql(nullptr)
 {
     qCDebug(Cc) << "Core singleton created";
 }
@@ -21,25 +22,47 @@ Core::~Core()
     qCDebug(Cc) << "Core singleton destroyed";
 }
 
-DBKVPluginInterface* Core::getDatabase() const
+DBKVPluginInterface* Core::getDBKV() const
 {
-    return m_database;
+    return m_dbkv;
 }
 
-void Core::setDatabasePlugin(const QString& pluginName)
+DBSQLPluginInterface* Core::getDBSQL() const
 {
-    // Enable database plugin
-    Settings::I()->setting("plugins.database.json.active", true);
-    Plugins::I()->settingActivePlugin("plugins.database.json.active", "dbkv-json");
+    return m_dbsql;
+}
+
+void Core::setDBKVPlugin(const QString& pluginName)
+{
+    // Enable KV database plugin
+    Settings::I()->setting("plugins.dbkv.json.active", true);
+    Plugins::I()->settingActivePlugin("plugins.dbkv.json.active", "dbkv-json");
     Plugins::I()->activateInterface("dbkv-json", QLatin1String("io.stateoftheart.asocial.plugin.DBKVPluginInterface"));
 
-    m_database = qobject_cast<DBKVPluginInterface*>(
+    m_dbkv = qobject_cast<DBKVPluginInterface*>(
         Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBKVPluginInterface", pluginName));
 
-    if (!m_database) {
-        qCWarning(Cc) << "Failed to load database plugin:" << pluginName;
+    if (!m_dbkv) {
+        qCWarning(Cc) << "Failed to load DBKV plugin:" << pluginName;
     } else {
-        qCDebug(Cc) << "Database plugin set to:" << pluginName;
+        qCDebug(Cc) << "DBKV plugin set to:" << pluginName;
+    }
+}
+
+void Core::setDBSQLPlugin(const QString& pluginName)
+{
+    // Enable SQL database plugin
+    Settings::I()->setting("plugins.dbsql.sqlcipher.active", true);
+    Plugins::I()->settingActivePlugin("plugins.dbsql.sqlcipher.active", "dbsql-sqlcipher");
+    Plugins::I()->activateInterface("dbsql-sqlcipher", QLatin1String("io.stateoftheart.asocial.plugin.DBSQLPluginInterface"));
+
+    m_dbsql = qobject_cast<DBSQLPluginInterface*>(
+        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBSQLPluginInterface", pluginName));
+
+    if (!m_dbsql) {
+        qCWarning(Cc) << "Failed to load DBSQL plugin:" << pluginName;
+    } else {
+        qCDebug(Cc) << "DBSQL plugin set to:" << pluginName;
     }
 }
 
@@ -59,8 +82,13 @@ void Core::setCurrentProfileId(const QString& profileId)
 
 QString Core::createProfile(const QString& name)
 {
-    if (!m_database) {
-        qCWarning(Cc) << "No database plugin available";
+    if (!m_dbkv) {
+        qCWarning(Cc) << "No DBKV plugin available";
+        return QString();
+    }
+
+    if (!m_dbsql) {
+        qCWarning(Cc) << "No DBSQL plugin available";
         return QString();
     }
 
@@ -72,7 +100,8 @@ QString Core::createProfile(const QString& name)
     profileData["name"] = name;
     profileData["created"] = QDateTime::currentDateTime();
 
-    if (!m_database->storeObject("profile_" + profileIdStr, profileData)) {
+    // TODO: Move to DBSQL
+    if (!m_dbkv->storeObject("profile_" + profileIdStr, profileData)) {
         qCWarning(Cc) << "Failed to create profile storage object";
         return QString();
     }
@@ -84,8 +113,13 @@ QString Core::createProfile(const QString& name)
 
 QString Core::importProfile(const QString& serializedData)
 {
-    if (!m_database) {
-        qCWarning(Cc) << "No database plugin available";
+    if (!m_dbkv) {
+        qCWarning(Cc) << "No DBKV plugin available";
+        return QString();
+    }
+
+    if (!m_dbsql) {
+        qCWarning(Cc) << "No DBSQL plugin available";
         return QString();
     }
 
@@ -105,14 +139,15 @@ QString Core::importProfile(const QString& serializedData)
         return QString();
     }
 
+    // TODO: Move to DBSQL
     // Check if profile already exists
-    if (m_database->objectExists("profile_" + profileId)) {
+    if (m_dbkv->objectExists("profile_" + profileId)) {
         qCWarning(Cc) << "Profile already exists:" << profileId;
         return QString();
     }
 
     // Store profile metadata
-    if (!m_database->storeObject("profile_" + profileId, profileData)) {
+    if (!m_dbkv->storeObject("profile_" + profileId, profileData)) {
         qCWarning(Cc) << "Unable to store profile:" << profileId;
         return QString();
     }
@@ -124,11 +159,6 @@ QString Core::importProfile(const QString& serializedData)
 
 QString Core::exportProfile(const QString& profileId)
 {
-    if (!m_database) {
-        qCWarning(Cc) << "No database plugin available";
-        return QString();
-    }
-
     QByteArray jsonData = QJsonDocument::fromVariant(getProfileInfo(profileId)).toJson();
 
     return QString(jsonData.toBase64());
@@ -136,13 +166,19 @@ QString Core::exportProfile(const QString& profileId)
 
 bool Core::deleteProfile(const QString& profileId)
 {
-    if (!m_database) {
-        qCWarning(Cc) << "No database plugin available";
+    if (!m_dbkv) {
+        qCWarning(Cc) << "No DBKV plugin available";
         return false;
     }
 
-    if (m_database->objectExists("profile_" + profileId)) {
-        if (!m_database->deleteObject("profile_" + profileId)) {
+    if (!m_dbsql) {
+        qCWarning(Cc) << "No DBSQL plugin available";
+        return false;
+    }
+
+    // TODO: Move to DBSQL
+    if (m_dbkv->objectExists("profile_" + profileId)) {
+        if (!m_dbkv->deleteObject("profile_" + profileId)) {
             qCWarning(Cc) << "Failed to delete profile:" << profileId;
             return false;
         }
@@ -154,23 +190,35 @@ bool Core::deleteProfile(const QString& profileId)
 
 QStringList Core::listProfiles()
 {
-    if (!m_database) {
-        qCWarning(Cc) << "No database plugin available";
+    if (!m_dbkv) {
+        qCWarning(Cc) << "No DBKV plugin available";
         return QStringList();
     }
 
-    return m_database->listObjects("profile_");
+    if (!m_dbsql) {
+        qCWarning(Cc) << "No DBSQL plugin available";
+        return QStringList();
+    }
+
+    // TODO: Move to DBSQL
+    return m_dbkv->listObjects("profile_");
 }
 
 QVariantMap Core::getProfileInfo(const QString& profileId)
 {
-    if (!m_database) {
-        qCWarning(Cc) << "No database plugin available";
+    if (!m_dbkv) {
+        qCWarning(Cc) << "No DBKV plugin available";
         return QVariantMap();
     }
 
+    if (!m_dbsql) {
+        qCWarning(Cc) << "No DBSQL plugin available";
+        return QVariantMap();
+    }
+
+    // TODO: Move to DBSQL
     QVariantMap object;
-    if (!m_database->retrieveObject("profile_" + profileId, object)) {
+    if (!m_dbkv->retrieveObject("profile_" + profileId, object)) {
         qCWarning(Cc) << "Failed to get profile:" << profileId;
         return QVariantMap();
     }

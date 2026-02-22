@@ -10,14 +10,12 @@
 Q_LOGGING_CATEGORY(Djp, "DBKVJsonPlugin")
 
 DBKVJsonPlugin::DBKVJsonPlugin()
-    : m_dataDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/database")
+    : m_dataDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/" + name())
 {
-    qCDebug(Djp) << "DBKVJsonPlugin created";
 }
 
 DBKVJsonPlugin::~DBKVJsonPlugin()
 {
-    qCDebug(Djp) << "DBKVJsonPlugin destroyed";
 }
 
 QString DBKVJsonPlugin::name() const

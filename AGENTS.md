@@ -26,6 +26,8 @@ Plugins are:
   utilize cloud, encrypt the files on disk or use other ways to keep the files available. In case
   file can't be stored on the system itself - there should be a preview available: small thumbnail
   for photos and a few thumbnail frames of the video.
+* DBKV - unencrypted key-value database for background services (like relay) day-to-day operations.
+* DBSQL - encrypted SQL database to store account information.
 * TODO - I think we need more types of plugins.
 
 ## Build & validation

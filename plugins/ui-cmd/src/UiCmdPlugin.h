@@ -10,7 +10,7 @@ class UiWorker;
 class Plugin : public QObject, public UiPluginInterface
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "io.stateoftheart.handy3dscanner.plugins.UiCmdPlugin")
+    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.UiCmdPlugin")
     Q_INTERFACES(UiPluginInterface PluginInterface)
 
 public:

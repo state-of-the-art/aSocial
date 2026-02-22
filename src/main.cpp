@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
     Settings::I();
 
     qCInfo(Cm, "Init core...");
-    Core::I()->setDatabasePlugin("dbkv-json");
+    Core::I()->setDBKVPlugin("dbkv-json");
+    Core::I()->setDBSQLPlugin("dbsql-sqlcipher");
 
     if( parser.isSet("no-gui") ) {
         // Init console application

@@ -7,7 +7,7 @@
 class Plugin : public QObject, public CommPluginInterface
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "io.stateoftheart.handy3dscanner.plugins.CommToxPlugin")
+    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.CommToxPlugin")
     Q_INTERFACES(CommPluginInterface PluginInterface)
 
 public:

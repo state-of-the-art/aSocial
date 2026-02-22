@@ -29,17 +29,24 @@ sudo chmod -R o+rwX ./downloads ./build
 qt-cmake ./project -G Ninja -B ./build -DCMAKE_BUILD_TYPE=Release -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
 cmake --build ./build
 
+# Adding wayland into mix
+export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
+
+# Excluding sql drivers we dont need (adds dependencies and complexity)
+export LINUXDEPLOY_EXCLUDED_LIBRARIES="libqsql*.so"
+
 linuxdeploy --appdir ./deploy --plugin qt \
   -e "$(find ./build -maxdepth 1 -type f -executable)" \
+  $(find ./build/plugins -maxdepth 1 -type f -name "libasocial-plugin-*.so" -printf "-l %p ") \
   -d ./project/asocial.desktop \
   -i ./project/asocial.icon.svg --icon-filename asocial
 
-# Adding plugins to share directory
+# Adding symlinks to plugins into app share directory
 mkdir -p ./deploy/usr/share/asocial/plugins
-for f in ./build/plugins/libasocial-plugin-*; do
+for f in `ls ./deploy/usr/lib/libasocial-plugin-*`; do
     name="$(basename "$f")"
-    echo "Copy plugin $name"
-    cp -a "$f" "./deploy/usr/share/asocial/plugins/$name"
+    echo "Linking plugin $name"
+    ln -s "../../../lib/$name" "./deploy/usr/share/asocial/plugins/$name"
 done
 
 # Completing the appimage

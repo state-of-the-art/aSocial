@@ -2,13 +2,13 @@
 #define PLUGIN_H
 
 #include <QObject>
-#include "plugin/UiPluginInterface.h"
+#include "plugin/DBSQLPluginInterface.h"
 
-class Plugin : public QObject, public UiPluginInterface
+class Plugin : public QObject, public DBSQLPluginInterface
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.UiGuiPlugin")
-    Q_INTERFACES(UiPluginInterface PluginInterface)
+    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.DBSQLSqlCipherPlugin")
+    Q_INTERFACES(DBSQLPluginInterface PluginInterface)
 
 public:
     Plugin() {}
@@ -21,10 +21,6 @@ public:
     bool init() override; // Warning: executing multiple times for each interface
     bool deinit() override;
     bool configure() override;
-
-    // UiPluginInterface
-    bool startUI() override;
-    bool stopUI() override;
 
 signals:
     void appNotice(QString msg) override;

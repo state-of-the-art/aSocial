@@ -6,6 +6,7 @@
 #include <QUuid>
 #include "CoreInterface.h"
 #include "plugin/DBKVPluginInterface.h"
+#include "plugin/DBSQLPluginInterface.h"
 
 class Core : public QObject, public CoreInterface
 {
@@ -21,8 +22,10 @@ public:
     inline static void destroyI() { delete s_pInstance; }
 
     // Database management
-    DBKVPluginInterface* getDatabase() const override;
-    void setDatabasePlugin(const QString& pluginName);
+    DBKVPluginInterface* getDBKV() const override;
+    void setDBKVPlugin(const QString& pluginName);
+    DBSQLPluginInterface* getDBSQL() const override;
+    void setDBSQLPlugin(const QString& pluginName);
 
     // Profile management
     QString getCurrentProfileId() const override;
@@ -45,7 +48,9 @@ private:
 
     static Core* s_pInstance;
 
-    DBKVPluginInterface* m_database;
+    DBKVPluginInterface* m_dbkv;
+    DBSQLPluginInterface* m_dbsql;
+
     QString m_currentProfileId;
 };
 

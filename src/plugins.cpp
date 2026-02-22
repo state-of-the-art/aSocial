@@ -15,6 +15,7 @@ Q_LOGGING_CATEGORY(plugins, "Plugins")
 #include "plugin/UiPluginInterface.h"
 #include "plugin/CommPluginInterface.h"
 #include "plugin/DBKVPluginInterface.h"
+#include "plugin/DBSQLPluginInterface.h"
 #include "core.h"
 
 Plugins* Plugins::s_pInstance = nullptr;
@@ -192,6 +193,7 @@ void Plugins::refreshPluginsList()
             bool loaded = addPlugin<UiPluginInterface>(qobject_cast<UiPluginInterface *>(plugin), plugin);
             loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface *>(plugin), plugin) || loaded;
             loaded = addPlugin<DBKVPluginInterface>(qobject_cast<DBKVPluginInterface *>(plugin), plugin) || loaded;
+            loaded = addPlugin<DBSQLPluginInterface>(qobject_cast<DBSQLPluginInterface *>(plugin), plugin) || loaded;
 
             if( !loaded ) {
                 plugin_loader.unload();

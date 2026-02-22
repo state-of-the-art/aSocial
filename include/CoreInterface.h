@@ -6,6 +6,7 @@
 #include <QStringList>
 
 class DBKVPluginInterface;
+class DBSQLPluginInterface;
 
 /**
  * Abstract interface for Core functionality that plugins can use
@@ -16,8 +17,10 @@ class CoreInterface
 public:
     virtual ~CoreInterface() {}
 
-    // Database management
-    virtual DBKVPluginInterface* getDatabase() const = 0;
+    // Key-Value database management
+    virtual DBKVPluginInterface* getDBKV() const = 0;
+    // SQL database management
+    virtual DBSQLPluginInterface* getDBSQL() const = 0;
 
     // Profile management
     virtual QString getCurrentProfileId() const = 0;
