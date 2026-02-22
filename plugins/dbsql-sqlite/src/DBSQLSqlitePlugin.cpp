@@ -1,12 +1,9 @@
-#include "DBSQLSqlCipherPlugin.h"
+#include "DBSQLSqlitePlugin.h"
 
 #include <QLoggingCategory>
 #include <QSqlDatabase>
 
 Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
-
-// We need to import the static plugin manually
-Q_IMPORT_PLUGIN(QSQLCipherDriverPlugin);
 
 Plugin* Plugin::s_pInstance = nullptr;
 

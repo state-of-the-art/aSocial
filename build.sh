@@ -15,12 +15,12 @@ else
     fi
 fi
 
-#    -v "${BASEDIR}/build/docker:/home/user/build:rw" \
 
 # Build the project
 docker run -i --rm \
     -v "${BASEDIR}:/home/user/project:ro" \
     -v "${BASEDIR}/build/downloads:/home/user/downloads:rw" \
+    -v "${BASEDIR}/build/docker:/home/user/build:rw" \
     -v "${PWD}:/home/user/out:rw" \
     asocial:build \
     sh -ec '
@@ -29,11 +29,11 @@ sudo chmod -R o+rwX ./downloads ./build
 qt-cmake ./project -G Ninja -B ./build -DCMAKE_BUILD_TYPE=Release -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
 cmake --build ./build
 
-# Adding wayland into mix
+# Adding wayland into the mix
 export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
 
-# Excluding sql drivers we dont need (adds dependencies and complexity)
-export LINUXDEPLOY_EXCLUDED_LIBRARIES="libqsql*.so"
+# Excluding sql drivers we dont need (adds dependencies and complexity), but keep sqlite
+export LINUXDEPLOY_EXCLUDED_LIBRARIES="libqsqlibase.so;libqsqlmimer.so;libqsqlmysql.so;libqsqloci.so;libqsqlodbc.so;libqsqlpsql.so"
 
 linuxdeploy --appdir ./deploy --plugin qt \
   -e "$(find ./build -maxdepth 1 -type f -executable)" \

@@ -7,7 +7,7 @@
 class Plugin : public QObject, public DBSQLPluginInterface
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.DBSQLSqlCipherPlugin")
+    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.DBSQLSqlitePlugin")
     Q_INTERFACES(DBSQLPluginInterface PluginInterface)
 
 public:

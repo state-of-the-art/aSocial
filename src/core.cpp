@@ -52,9 +52,9 @@ void Core::setDBKVPlugin(const QString& pluginName)
 void Core::setDBSQLPlugin(const QString& pluginName)
 {
     // Enable SQL database plugin
-    Settings::I()->setting("plugins.dbsql.sqlcipher.active", true);
-    Plugins::I()->settingActivePlugin("plugins.dbsql.sqlcipher.active", "dbsql-sqlcipher");
-    Plugins::I()->activateInterface("dbsql-sqlcipher", QLatin1String("io.stateoftheart.asocial.plugin.DBSQLPluginInterface"));
+    Settings::I()->setting("plugins.dbsql.sqlite.active", true);
+    Plugins::I()->settingActivePlugin("plugins.dbsql.sqlite.active", "dbsql-sqlite");
+    Plugins::I()->activateInterface("dbsql-sqlite", QLatin1String("io.stateoftheart.asocial.plugin.DBSQLPluginInterface"));
 
     m_dbsql = qobject_cast<DBSQLPluginInterface*>(
         Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBSQLPluginInterface", pluginName));

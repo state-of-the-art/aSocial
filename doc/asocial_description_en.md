@@ -226,13 +226,13 @@ will need to be considered.
 
 ## 6.1. Architecture
 
-The main platform uses Qt 6 with platform-specific add-ons. The choice of Qt 6, LevelDB, and
-SQLCipher emphasizes trusted, battle-tested technologies that ensure the system remains
-self-contained, multi-platform (supporting Android, Linux, Windows, macOS, and potentially iOS),
-and performant on diverse hardware. While modern frameworks like Flutter or Tauri offer
-alternatives, aSocial prioritizes reliability and developer familiarity to avoid dependencies that
-could compromise security or introduce bloat. This stack allows seamless deployment on servers,
-desktops, or pocket devices without sacrificing responsiveness or security.
+The main platform uses Qt 6 with platform-specific add-ons. The choice of Qt 6 emphasizes trusted,
+battle-tested technologies that ensure the system remains self-contained, multi-platform
+(supporting Android, Linux, Windows, macOS, and potentially iOS), and performant on diverse
+hardware. While modern frameworks like Flutter or Tauri offer alternatives, aSocial prioritizes
+reliability and developer familiarity to avoid dependencies that could compromise security or
+introduce bloat. This stack allows seamless deployment on servers, desktops, or pocket devices
+without sacrificing responsiveness or security.
 
 The application is divided into two modules - backend and frontend:
 
@@ -240,28 +240,29 @@ The application is divided into two modules - backend and frontend:
 
 It deals with background activity - interacts with devices nearby and via the Internet, transmits
 and receives data from other devices (for example, someone else's encrypted messages for further
-transmission), receives updates. Stores intermediate already encrypted data in LevelDB.
+transmission), receives updates. Stores intermediate already encrypted data in key-value database.
 
 ### Frontend
 
-User interface for managing profiles. Main storage is SQLCipher (SQLite with encryption).
+User interface for managing profiles. Main storage is SQLite with Shufflecake-inspired containers
+encryption.
 
 ## 6.2. Storage
 
-For storage, a pair of local databases is used - the built-in unencrypted nosql storage LevelDB,
-which is necessary to maintain the data transfer service, and the encrypted sql storage SqlCipher
-(add-on over sqlite3) for storing profile data.
+For storage, a pair of local databases is used - the built-in unencrypted nosql key-value storage,
+which is necessary to maintain the data transfer service, and the encrypted sql storage for storing
+profile data.
 
-### LevelDB
+### Key-Value DB
 
 It allows you to store key-value data that is not valuable for a potential attack - these are
 connection lists, encrypted relay data... In general, the data that are necessary for interaction
 between systems in hibernation mode. Also stores password-encrypted keys from available profiles.
 
-### SqlCipher
+### SQL DB
 
 An encrypted database for storing important profile information. It is decrypted in chunks as
-needed using a long key.
+needed using a long key. It's stored as one big encrypted container which supports hidden layers.
 
 ### File storage
 

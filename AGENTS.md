@@ -18,9 +18,9 @@ as dispatching control messages between the plugins.
 Plugins are:
 * Comm - allows communication between aSocial nodes. It's not just networking, but also using
   the other mediums for message transferring.
-* Protection - communication between aSocial nodes need to be secure and potentially follow
-  plausable deniability, so those plugins should help to transform message before it's sent and
-  after it's received.
+* Enc - communication between aSocial nodes need to be secure and potentially follow plausable
+  deniability, so those plugins should help to transform message before it's sent and after it's
+  received.
 * UI - shows the UI for the user. Separated plugin to allow to run aSocial as a headless service.
 * Storage - enables user to keep files. Regular ones are just storing on disk, advanced ones could
   utilize cloud, encrypt the files on disk or use other ways to keep the files available. In case
