@@ -3,8 +3,7 @@ cmake_policy(SET CMP0135 NEW)
 
 project(toxcore)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../common.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../libs.cmake)
+include(${PLUGINS_SOURCE_DIR}/common.cmake)
 
 if(ANDROID)
   set(android_params
@@ -16,7 +15,7 @@ endif()
 
 include(ExternalProject)
 ExternalProject_Add(lib_${PROJECT_NAME}
-  DEPENDS          lib_sodium
+  DEPENDS          lib_sodium  # Common lib
   URL              ${lib_${PROJECT_NAME}_url}
   URL_HASH         ${lib_${PROJECT_NAME}_hash}
   DOWNLOAD_DIR     "${LIBS_DOWNLOAD_CACHE_DIR}/${PROJECT_NAME}"

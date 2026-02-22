@@ -3,7 +3,7 @@ cmake_policy(SET CMP0135 NEW)
 
 project(sodium LANGUAGES C)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../common.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../common.cmake)
 
 include(ProcessorCount)
 ProcessorCount(CPU_N)
@@ -15,9 +15,9 @@ ExternalProject_Add(lib_${PROJECT_NAME}
   DOWNLOAD_DIR      "${LIBS_DOWNLOAD_CACHE_DIR}/${PROJECT_NAME}"
   PREFIX            "${CMAKE_BINARY_DIR}/_build"
   INSTALL_DIR       "${LIBS_RESULT_DIR}"
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --disable-shared --prefix=<INSTALL_DIR>
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --disable-static --prefix=<INSTALL_DIR>
   BUILD_COMMAND     make -j${CPU_N}
   INSTALL_COMMAND   make -j${CPU_N} install
-  BUILD_BYPRODUCTS  <INSTALL_DIR>/lib/libsodium.a
+  BUILD_BYPRODUCTS  <INSTALL_DIR>/lib/libsodium.so
   LOG_OUTPUT_ON_FAILURE true
 )

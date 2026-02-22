@@ -12,7 +12,6 @@ foreach(child ${childs})
     endif()
 endforeach()
 
-include(ExternalProject)
 foreach(lib ${LIBS_LIST})
     message("Configure lib: ${lib}")
 

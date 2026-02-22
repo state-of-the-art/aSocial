@@ -1,4 +1,4 @@
 # libsodium configuration
-set(lib_sodium_version 1.0.18) # May 30, 2019
+set(lib_sodium_version 1.0.21) # Jan 6, 2026
 set(lib_sodium_url https://github.com/jedisct1/libsodium/releases/download/${lib_sodium_version}-RELEASE/libsodium-${lib_sodium_version}.tar.gz)
-set(lib_sodium_hash SHA256=6f504490b342a4f8a4c4a02fc9b866cbef8622d5df4e5452b46be121e46636c1)
+set(lib_sodium_hash SHA256=9e4285c7a419e82dedb0be63a72eea357d6943bc3e28e6735bf600dd4883feaf)

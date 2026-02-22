@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Common parameters
 include(common.cmake)
 
+# Build common libs
+include(libs.cmake)
+
 # Build plugins
 include(plugins.cmake)
 

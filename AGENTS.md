@@ -30,6 +30,10 @@ Plugins are:
 * DBSQL - encrypted SQL database to store account information.
 * TODO - I think we need more types of plugins.
 
+Plugins could contain their specific libs (which will be built by the build system) and if they are
+using some common dependencies - those need to be put in `./libs` directory in the repo root to be
+build.
+
 ## Build & validation
 
 IMPORTANT: use only `./build.sh` to verify the changes and make sure they are working fine. No

@@ -1,4 +1,4 @@
 # libtoxcore configuration
-set(lib_toxcore_version 0.2.12) # May 1, 2020
-set(lib_toxcore_url https://github.com/TokTok/c-toxcore/archive/refs/tags/v${lib_toxcore_version}.tar.gz)
-set(lib_toxcore_hash SHA256=30ae3263c9b68d3bef06f799ba9d7a67e3fad447030625f0ffa4bb22684228b0)
+set(lib_toxcore_version 0.2.22) # Feb 7, 2026
+set(lib_toxcore_url https://github.com/TokTok/c-toxcore/releases/download/v${lib_toxcore_version}/c-toxcore-v${lib_toxcore_version}.tar.gz)
+set(lib_toxcore_hash SHA256=276d447eb94e9d76e802cecc5ca7660c6c15128a83dfbe4353b678972aeb950a)

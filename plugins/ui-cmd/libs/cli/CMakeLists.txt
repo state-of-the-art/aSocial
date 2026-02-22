@@ -3,7 +3,7 @@ cmake_policy(SET CMP0135 NEW)
 
 project(cli)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../common.cmake)
+include(${PLUGINS_SOURCE_DIR}/../common.cmake)
 
 include(FetchContent)
 FetchContent_Declare(

@@ -3,6 +3,6 @@ project(dbkv-json LANGUAGES CXX VERSION 0.1.0)
 
 find_package(Qt6 COMPONENTS Core REQUIRED)
 
-include(${CMAKE_CURRENT_LIST_DIR}/../common.cmake)
+include(${PLUGINS_SOURCE_DIR}/common.cmake)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core)

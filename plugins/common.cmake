@@ -4,7 +4,7 @@
 include(${CMAKE_CURRENT_LIST_DIR}/../common.cmake)
 
 # Build libs
-include(${CMAKE_CURRENT_LIST_DIR}/libs.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../libs.cmake)
 
 qt_add_plugin(${PROJECT_NAME} SHARED CLASS_NAME Plugin)
 
