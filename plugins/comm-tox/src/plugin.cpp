@@ -1,7 +1,24 @@
-#include "DBSQLSqlitePlugin.h"
+// Copyright (C) 2026  aSocial Developers
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Author: Rabit (@rabits)
+
+#include "plugin.h"
 
 #include <QLoggingCategory>
-#include <QSqlDatabase>
+#include "tox/tox.h"
 
 Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
@@ -26,7 +43,7 @@ bool Plugin::init()
     qCDebug(C) << __func__;
     Plugin::s_pInstance = this;
 
-    qCDebug(C) << "SQL Drivers:" << QSqlDatabase::drivers();
+    qCDebug(C) << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
     // TODO: Init here
 
     qCDebug(C) << "init() done";

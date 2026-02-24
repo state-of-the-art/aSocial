@@ -16,7 +16,7 @@
 
 # Author: Rabit (@rabits)
 
-# Script builds complete release asocial appimage using docker qt image
+# Script run unit tests and does plugins standalone validation for asocial using docker qt image
 
 BASEDIR=$(dirname `readlink -f $0`)
 
@@ -35,46 +35,43 @@ fi
 
 "$BASEDIR/check.sh"
 
-# Build the project
+# Build the entire project
 docker run -i --rm \
     -v "${BASEDIR}:/home/user/project:ro" \
     -v "${BASEDIR}/build/downloads:/home/user/downloads:rw" \
-    -v "${BASEDIR}/build/docker:/home/user/build:rw" \
-    -v "${PWD}:/home/user/out:rw" \
     asocial:build \
     sh -ec '
 [ -d build ] || mkdir -p build
 sudo chmod -R o+rwX ./downloads ./build
-qt-cmake ./project -G Ninja -B ./build -DCMAKE_BUILD_TYPE=Release -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
+qt-cmake ./project -G Ninja -B ./build -DBUILD_TESTS=ON -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
 cmake --build ./build
 
-# Adding wayland into the mix
-export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
-
-# Excluding sql drivers we dont need (adds dependencies and complexity), but keep sqlite
-export LINUXDEPLOY_EXCLUDED_LIBRARIES="libqsqlibase.so;libqsqlmimer.so;libqsqlmysql.so;libqsqloci.so;libqsqlodbc.so;libqsqlpsql.so"
-
-linuxdeploy --appdir ./deploy --plugin qt \
-  -e "$(find ./build -maxdepth 1 -type f -executable)" \
-  $(find ./build/plugins -maxdepth 1 -type f -name "libasocial-plugin-*.so" -printf "-l %p ") \
-  -d ./project/asocial.desktop \
-  -i ./project/asocial.icon.svg --icon-filename asocial
-
-# Adding symlinks to plugins into app share directory
-mkdir -p ./deploy/usr/share/asocial/plugins
-for f in `ls ./deploy/usr/lib/libasocial-plugin-*`; do
-    name="$(basename "$f")"
-    echo "Linking plugin $name"
-    ln -s "../../../lib/$name" "./deploy/usr/share/asocial/plugins/$name"
-done
-
-# Completing the appimage
-linuxdeploy --appdir ./deploy --output appimage
-
-sudo mv aSocial-x86_64.AppImage ./out/
+echo
+echo =========== RUNNING TESTS ===========
+find ./build/plugins -name "DartConfiguration.tcl" -execdir ctest -V \;
 '
 
-# Changing ownership of the resulting file to current user
-cp -a aSocial-x86_64.AppImage tmp-aSocial-x86_64.AppImage
-rm -f aSocial-x86_64.AppImage
-mv tmp-aSocial-x86_64.AppImage aSocial-x86_64.AppImage
+# Make sure each plugin can be built separately
+plugins=''
+plugins_count=0
+for plugin_path in `find ${BASEDIR}/plugins -mindepth 1 -maxdepth 1 -type d`; do
+    [ -f "$plugin_path/CMakeLists.txt" ] || continue
+    plugin=$(basename "$plugin_path")
+    echo
+    echo "Checking standalone $plugin build"
+    plugins_count=$(($plugins_count+1))
+    plugins="$plugins $plugin"
+    docker run -i --rm \
+        -v "${BASEDIR}:/home/user/project:ro" \
+        -v "${BASEDIR}/build/downloads:/home/user/downloads:rw" \
+        asocial:build \
+        sh -ec "
+[ -d build ] || mkdir -p build
+sudo chmod -R o+rwX ./downloads ./build
+qt-cmake ./project/plugins/$plugin -G Ninja -B ./build -DBUILD_TESTS=ON -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
+cmake --build ./build
+"
+done
+
+echo
+echo "Successfully checked $plugins_count plugins: $plugins"
