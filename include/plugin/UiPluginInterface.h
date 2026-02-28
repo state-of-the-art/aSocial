@@ -20,8 +20,8 @@
 
 // Interface to implement the way application will display the content
 
-#include <QStringList>
 #include "PluginInterface.h"
+#include <QStringList>
 
 #define UiPluginInterface_iid "io.stateoftheart.asocial.plugin.UiPluginInterface"
 

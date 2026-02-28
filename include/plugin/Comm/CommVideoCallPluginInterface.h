@@ -20,8 +20,8 @@
 
 // Video communication interface to make the video calls
 
-#include <QStringList>
 #include "../CommPluginInterface.h"
+#include <QStringList>
 
 #define CommVideoCallPluginInterface_iid "io.stateoftheart.asocial.plugin.CommVideoCallPluginInterface"
 

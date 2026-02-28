@@ -20,8 +20,8 @@
 
 // Audio communication interface to send and receive audio files
 
-#include <QStringList>
 #include "../CommPluginInterface.h"
+#include <QStringList>
 
 #define CommAudioPluginInterface_iid "io.stateoftheart.asocial.plugin.CommAudioPluginInterface"
 

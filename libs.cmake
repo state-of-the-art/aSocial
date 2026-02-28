@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 3.16)
 if(NOT DEFINED ASOCIAL_LIBS_DIR)
     set(ASOCIAL_LIBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs)
 endif()
-message("Processing libs in ${ASOCIAL_LIBS_DIR}")
+#message("Processing libs in ${ASOCIAL_LIBS_DIR}")
 
 # List of the dirs and add as subdirs
 set(_libs_dir "${ASOCIAL_LIBS_DIR}")
@@ -35,7 +35,7 @@ endforeach()
 
 foreach(lib ${LIBS_LIST})
     if(DEFINED lib_${lib}_loaded)
-        message("Skipping already loaded lib: ${lib}")
+        #message("Skipping already loaded lib: ${lib}")
         continue()
     endif()
     set(lib_${lib}_loaded ON)

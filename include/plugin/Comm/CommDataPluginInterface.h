@@ -20,8 +20,8 @@
 
 // Data communication interface to transfer binaries and files
 
-#include <QStringList>
 #include "../CommPluginInterface.h"
+#include <QStringList>
 
 #define CommDataPluginInterface_iid "io.stateoftheart.asocial.plugin.CommDataPluginInterface"
 

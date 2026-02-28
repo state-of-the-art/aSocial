@@ -45,8 +45,7 @@ public:
      * @param data       Decrypted initial content (may be empty for new files).
      * @param parent     Optional QObject parent.
      */
-    VirtualFile(EncryptedVFSContainer* container, int slotIndex,
-                const QByteArray& data, QObject* parent = nullptr);
+    VirtualFile(EncryptedVFSContainer* container, int slotIndex, const QByteArray& data, QObject* parent = nullptr);
     ~VirtualFile() override;
 
     /**
@@ -70,7 +69,7 @@ protected:
 
 private:
     EncryptedVFSContainer* m_container;
-    int  m_slotIndex;
+    int m_slotIndex;
     bool m_dirty;
 };
 

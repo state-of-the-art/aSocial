@@ -46,5 +46,5 @@ build.
 ## Build & validation
 
 IMPORTANT: use only `./build.sh` to check that complete build is working and `./test.sh` to ensure
-unit tests are running fine and plugins could be built standalone. No other tool can help with this
-task.
+unit & integration tests are running fine and plugins could be built standalone. No other tool can
+help with this task.

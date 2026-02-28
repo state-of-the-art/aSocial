@@ -17,8 +17,8 @@
 
 #include "plugin.h"
 
-#include <QLoggingCategory>
 #include "tox/tox.h"
+#include <QLoggingCategory>
 
 Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 

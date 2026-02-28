@@ -20,8 +20,7 @@
 
 #include <sodium.h>
 
-VirtualFile::VirtualFile(EncryptedVFSContainer* container, int slotIndex,
-                         const QByteArray& data, QObject* parent)
+VirtualFile::VirtualFile(EncryptedVFSContainer* container, int slotIndex, const QByteArray& data, QObject* parent)
     : QBuffer(parent)
     , m_container(container)
     , m_slotIndex(slotIndex)
@@ -32,12 +31,12 @@ VirtualFile::VirtualFile(EncryptedVFSContainer* container, int slotIndex,
 
 VirtualFile::~VirtualFile()
 {
-    if (isOpen())
+    if( isOpen() )
         VirtualFile::close();
 
     // Secure-wipe the internal buffer before QBuffer frees it
     QByteArray& buf = buffer();
-    if (!buf.isEmpty())
+    if( !buf.isEmpty() )
         sodium_memzero(buf.data(), static_cast<size_t>(buf.size()));
 }
 
@@ -45,7 +44,7 @@ void VirtualFile::close()
 {
     flush();
 
-    if (m_container) {
+    if( m_container ) {
         m_container->unregisterOpenFile(this);
         m_container = nullptr;
     }
@@ -55,11 +54,11 @@ void VirtualFile::close()
 
 bool VirtualFile::flush()
 {
-    if (!m_dirty || !m_container || !m_container->isOpen())
+    if( !m_dirty || !m_container || !m_container->isOpen() )
         return !m_dirty;
 
     bool ok = m_container->writeFileData(m_slotIndex, data());
-    if (ok)
+    if( ok )
         m_dirty = false;
     return ok;
 }

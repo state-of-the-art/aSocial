@@ -19,21 +19,22 @@
 #include "settings.h"
 //#include "application.h"
 
-#include <QLoggingCategory>
 #include <QCoreApplication>
+#include <QLoggingCategory>
 
 Q_LOGGING_CATEGORY(plugins, "Plugins")
 
-#include <QStandardPaths>
 #include <QDir>
+#include <QStandardPaths>
 
 #include <QPluginLoader>
 
-#include "plugin/UiPluginInterface.h"
+#include "core.h"
 #include "plugin/CommPluginInterface.h"
 #include "plugin/DBKVPluginInterface.h"
 #include "plugin/DBSQLPluginInterface.h"
-#include "core.h"
+#include "plugin/UiPluginInterface.h"
+#include "plugin/VFSPluginInterface.h"
 
 Plugins* Plugins::s_pInstance = nullptr;
 
@@ -54,7 +55,7 @@ QList<QString> Plugins::listPlugins()
     return m_plugins.keys();
 }
 
-QList<QLatin1String> Plugins::listInterfaces(const QString &name)
+QList<QLatin1String> Plugins::listInterfaces(const QString& name)
 {
     if( !m_plugins.contains(name) ) {
         qCWarning(plugins) << __func__ << "Not found plugin" << name;
@@ -63,7 +64,7 @@ QList<QLatin1String> Plugins::listInterfaces(const QString &name)
     return m_plugins[name].keys();
 }
 
-QList<QObject*> Plugins::getInterfacePlugins(const QString &if_name)
+QList<QObject*> Plugins::getInterfacePlugins(const QString& if_name)
 {
     QLatin1String iid = QLatin1String(if_name.toLatin1());
     if( m_plugins_active.contains(iid) )
@@ -74,12 +75,12 @@ QList<QObject*> Plugins::getInterfacePlugins(const QString &if_name)
     }
 }
 
-QObject* Plugins::getPlugin(const QString &if_name, const QString &name)
+QObject* Plugins::getPlugin(const QString& if_name, const QString& name)
 {
     QLatin1String iid = QLatin1String(if_name.toLatin1());
     if( m_plugins_active.contains(iid) ) {
         for( QObject* plugin : m_plugins_active[iid] ) {
-            if( qobject_cast<PluginInterface *>(plugin)->name() == name )
+            if( qobject_cast<PluginInterface*>(plugin)->name() == name )
                 return plugin;
         }
     }
@@ -88,25 +89,26 @@ QObject* Plugins::getPlugin(const QString &if_name, const QString &name)
     return nullptr;
 }
 
-void Plugins::settingActivePlugin(const QString &key, const QString &name)
+void Plugins::settingActivePlugin(const QString& key, const QString& name)
 {
     m_setting_plugin_active.insert(key, name);
 }
 
-void Plugins::settingActiveInterface(const QString &key, const QString &name, const QLatin1String &interface)
+void Plugins::settingActiveInterface(const QString& key, const QString& name, const QLatin1String& interface)
 {
     m_setting_plugin_interface_active.insert(key, QPair<QString, QLatin1String>(name, interface));
 }
 
-bool Plugins::activateInterface(const QString &name, const QLatin1String &interface_id)
+bool Plugins::activateInterface(const QString& name, const QLatin1String& interface_id)
 {
     // Don't activate interface if the plugin is not enabled
     if( !Settings::I()->setting(m_setting_plugin_active.key(name)).toBool() )
         return false;
     QObject* plugin = m_plugins[name][interface_id];
-    PluginInterface* plugin_if = qobject_cast<PluginInterface *>(plugin);
+    PluginInterface* plugin_if = qobject_cast<PluginInterface*>(plugin);
     if( !plugin_if ) {
-        qCWarning(plugins) << __func__ << "Unable to locate plugin interface to activate" << name << plugin_if << plugin;
+        qCWarning(plugins) << __func__ << "Unable to locate plugin interface to activate" << name << plugin_if
+                           << plugin;
         return false;
     }
     plugin_if->setCore(Core::I());
@@ -118,12 +120,13 @@ bool Plugins::activateInterface(const QString &name, const QLatin1String &interf
     return false;
 }
 
-bool Plugins::deactivateInterface(const QString &name, const QLatin1String &interface_id)
+bool Plugins::deactivateInterface(const QString& name, const QLatin1String& interface_id)
 {
     QObject* plugin = m_plugins[name][interface_id];
-    PluginInterface* plugin_if = qobject_cast<PluginInterface *>(plugin);
+    PluginInterface* plugin_if = qobject_cast<PluginInterface*>(plugin);
     if( !plugin_if ) {
-        qCWarning(plugins) << __func__ << "Unable to locate plugin interface to deactivate" << name << plugin_if << plugin;
+        qCWarning(plugins) << __func__ << "Unable to locate plugin interface to deactivate" << name << plugin_if
+                           << plugin;
         return false;
     }
     if( m_plugins_active[interface_id].contains(plugin) ) {
@@ -141,7 +144,7 @@ bool Plugins::deactivateInterface(const QString &name, const QLatin1String &inte
     return false;
 }
 
-void Plugins::settingChanged(const QString &key, const QVariant &value)
+void Plugins::settingChanged(const QString& key, const QVariant& value)
 {
     if( m_setting_plugin_active.contains(key) ) {
         QString name = m_setting_plugin_active[key];
@@ -174,15 +177,15 @@ void Plugins::settingChanged(const QString &key, const QVariant &value)
 void Plugins::refreshPluginsList()
 {
     // By default uses simple structure where plugins located near the executable
-    QStringList plugins_dirs = { QCoreApplication::applicationDirPath().append("/plugins") };
+    QStringList plugins_dirs = {QCoreApplication::applicationDirPath().append("/plugins")};
     plugins_dirs.append(QCoreApplication::applicationDirPath().append("/../share/asocial/plugins"));
     // TODO: Could be dangerous to load plugins from everywhere - maybe by default load
     // only the trusted ones or implement plugin vendors and signatures?
     plugins_dirs.append(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
 
-    QStringList filters = { "libasocial-plugin-*" };
+    QStringList filters = {"libasocial-plugin-*"};
 
-    for( const QString &path : plugins_dirs ) {
+    for( const QString& path : plugins_dirs ) {
         QDir dir = QDir(path);
         if( !dir.exists() ) {
             continue;
@@ -190,9 +193,9 @@ void Plugins::refreshPluginsList()
         qCDebug(plugins) << "Listing plugins from directory:" << path;
         dir.setNameFilters(filters);
         QStringList libs = dir.entryList(QDir::Files);
-        for( const QString &lib_name : libs ) {
+        for( const QString& lib_name : libs ) {
             QPluginLoader plugin_loader(dir.absoluteFilePath(lib_name), this);
-            QObject *plugin = plugin_loader.instance();
+            QObject* plugin = plugin_loader.instance();
             if( !plugin ) {
                 qCWarning(plugins) << "  unable to load plugin:" << lib_name << plugin_loader.errorString();
                 continue;
@@ -207,10 +210,12 @@ void Plugins::refreshPluginsList()
             connect(plugin, SIGNAL(appError(QString)), Application::I(), SLOT(error(QString)));*/
 
             qCDebug(plugins) << "  loading plugin:" << lib_name;
-            bool loaded = addPlugin<UiPluginInterface>(qobject_cast<UiPluginInterface *>(plugin), plugin);
-            loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface *>(plugin), plugin) || loaded;
-            loaded = addPlugin<DBKVPluginInterface>(qobject_cast<DBKVPluginInterface *>(plugin), plugin) || loaded;
-            loaded = addPlugin<DBSQLPluginInterface>(qobject_cast<DBSQLPluginInterface *>(plugin), plugin) || loaded;
+            bool loaded = false;
+            loaded = addPlugin<UiPluginInterface>(qobject_cast<UiPluginInterface*>(plugin), plugin);
+            loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface*>(plugin), plugin) || loaded;
+            loaded = addPlugin<VFSPluginInterface>(qobject_cast<VFSPluginInterface*>(plugin), plugin) || loaded;
+            loaded = addPlugin<DBKVPluginInterface>(qobject_cast<DBKVPluginInterface*>(plugin), plugin) || loaded;
+            loaded = addPlugin<DBSQLPluginInterface>(qobject_cast<DBSQLPluginInterface*>(plugin), plugin) || loaded;
 
             if( !loaded ) {
                 plugin_loader.unload();
@@ -218,7 +223,6 @@ void Plugins::refreshPluginsList()
             }
         }
     }
-
 
     auto it = m_plugins.begin();
     while( it != m_plugins.end() ) {
@@ -232,7 +236,7 @@ void Plugins::refreshPluginsList()
 }
 
 template<class T>
-bool Plugins::addPlugin(T *obj, QObject *plugin)
+bool Plugins::addPlugin(T* obj, QObject* plugin)
 {
     static_assert(std::is_base_of<PluginInterface, T>::value, "Unable to add non-PluginInterface object as plugin");
 

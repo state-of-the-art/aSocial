@@ -15,9 +15,9 @@
 
 // Author: Rabit (@rabits)
 
-#include <QTest>
-#include <QTemporaryDir>
 #include <QScopedPointer>
+#include <QTemporaryDir>
+#include <QTest>
 
 #include "../src/EncryptedVFSContainer.h"
 
@@ -28,12 +28,14 @@ class TestVFSCake : public QObject
     Q_OBJECT
 
 private slots:
-    void initTestCase() {
+    void initTestCase()
+    {
         QVERIFY(sodium_init() >= 0);
         QVERIFY(m_tempDir.isValid());
     }
 
-    void testCreateContainer() {
+    void testCreateContainer()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("new.vfs"));
 
         EncryptedVFSContainer c;
@@ -49,7 +51,8 @@ private slots:
         c.close();
         QVERIFY(!c.isOpen());
     }
-    void testOpenClose() {
+    void testOpenClose()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("oc.vfs"));
 
         EncryptedVFSContainer c;
@@ -58,7 +61,8 @@ private slots:
         c.close();
         QVERIFY(!c.isOpen());
     }
-    void testListFilesEmpty() {
+    void testListFilesEmpty()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("empty.vfs"));
 
         EncryptedVFSContainer c;
@@ -66,7 +70,8 @@ private slots:
         QVERIFY(c.listFiles().isEmpty());
         c.close();
     }
-    void testCreateAndListFile() {
+    void testCreateAndListFile()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("list.vfs"));
 
         EncryptedVFSContainer c;
@@ -84,7 +89,8 @@ private slots:
 
         c.close();
     }
-    void testFileReadWriteRoundTrip() {
+    void testFileReadWriteRoundTrip()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("rw.vfs"));
         const QByteArray payload("Hello, encrypted VFS!");
 
@@ -102,7 +108,8 @@ private slots:
 
         c.close();
     }
-    void testDeleteFile() {
+    void testDeleteFile()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("del.vfs"));
 
         EncryptedVFSContainer c;
@@ -121,7 +128,8 @@ private slots:
 
         c.close();
     }
-    void testRenameFile() {
+    void testRenameFile()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("ren.vfs"));
 
         EncryptedVFSContainer c;
@@ -140,13 +148,14 @@ private slots:
 
         c.close();
     }
-    void testMultipleFiles() {
+    void testMultipleFiles()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("multi.vfs"));
 
         EncryptedVFSContainer c;
         QVERIFY(c.open(path, QLatin1String("pw"), MAX_TEST_SIZE));
 
-        for (int i = 0; i < 5; ++i) {
+        for( int i = 0; i < 5; ++i ) {
             const QString name = QStringLiteral("file_%1.dat").arg(i);
             QIODevice* dev = c.openFile(name);
             QVERIFY(dev);
@@ -157,14 +166,15 @@ private slots:
 
         QCOMPARE(c.listFiles().size(), 5);
 
-        for (int i = 0; i < 5; ++i) {
+        for( int i = 0; i < 5; ++i ) {
             const QString name = QStringLiteral("file_%1.dat").arg(i);
             QCOMPARE(c.readFile(name), QByteArray::number(i).repeated(10));
         }
 
         c.close();
     }
-    void testAutoGrowth() {
+    void testAutoGrowth()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("grow.vfs"));
 
         EncryptedVFSContainer c;
@@ -183,7 +193,8 @@ private slots:
 
         c.close();
     }
-    void testDemoMode() {
+    void testDemoMode()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("demo.vfs"));
 
         EncryptedVFSContainer c;
@@ -203,7 +214,8 @@ private slots:
         QVERIFY(c2.listFiles().contains(QLatin1String("demo.txt")));
         c2.close();
     }
-    void testDifferentKeysIsolation() {
+    void testDifferentKeysIsolation()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("iso.vfs"));
 
         {
@@ -232,7 +244,8 @@ private slots:
             c.close();
         }
     }
-    void testPersistenceAcrossReopen() {
+    void testPersistenceAcrossReopen()
+    {
         const QString path = m_tempDir.filePath(QLatin1String("persist.vfs"));
 
         {

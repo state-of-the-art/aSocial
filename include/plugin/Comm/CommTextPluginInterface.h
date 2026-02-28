@@ -20,8 +20,8 @@
 
 // Simple text communication interface
 
-#include <QStringList>
 #include "../CommPluginInterface.h"
+#include <QStringList>
 
 #define CommTextPluginInterface_iid "io.stateoftheart.asocial.plugin.CommTextPluginInterface"
 

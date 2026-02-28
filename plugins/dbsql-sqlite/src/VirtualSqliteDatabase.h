@@ -72,14 +72,14 @@ public:
 
 private:
     QByteArray serializeToSql() const;
-    bool       deserializeFromSql(const QByteArray& sqlDump);
-    void       writeBackToDevice(const QByteArray& data);
+    bool deserializeFromSql(const QByteArray& sqlDump);
+    void writeBackToDevice(const QByteArray& data);
     static void secureWipe(QByteArray& data);
 
     QIODevice* m_device = nullptr;
-    QString    m_connectionName;
-    QTimer     m_autoFlushTimer;
-    bool       m_isOpen = false;
+    QString m_connectionName;
+    QTimer m_autoFlushTimer;
+    bool m_isOpen = false;
 };
 
 #endif // VIRTUALSQLITEDATABASE_H

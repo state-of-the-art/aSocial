@@ -18,9 +18,9 @@
 #ifndef PLUGININTERFACE_H
 #define PLUGININTERFACE_H
 
-#include <QtPlugin>
-#include <QStringList>
 #include "CoreInterface.h"
+#include <QStringList>
+#include <QtPlugin>
 
 #define PluginInterface_iid "io.stateoftheart.asocial.PluginInterface"
 
@@ -30,7 +30,7 @@
 class PluginInterface
 {
 public:
-    virtual ~PluginInterface() {};
+    virtual ~PluginInterface(){};
 
     /**
      * @brief Return plugin type

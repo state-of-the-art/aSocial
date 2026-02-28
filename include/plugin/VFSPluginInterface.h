@@ -48,7 +48,7 @@ class VFSContainerPluginInterface;
 class VFSPluginInterface : public PluginInterface
 {
 public:
-    virtual ~VFSPluginInterface() {};
+    virtual ~VFSPluginInterface(){};
 
     /**
      * @brief Return the plugin-type identifier.
@@ -71,9 +71,8 @@ public:
      * @return VFSContainerPluginInterface*, or @c nullptr on failure.
      */
     virtual VFSContainerPluginInterface* openContainer(
-        const QString& containerPath,
-        const QString& passphrase,
-        quint64 maxContainerSize = 0) = 0;
+        const QString& containerPath, const QString& passphrase, quint64 maxContainerSize = 0)
+        = 0;
 };
 
 Q_DECLARE_INTERFACE(VFSPluginInterface, VFSPluginInterface_iid)

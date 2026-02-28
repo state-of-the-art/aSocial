@@ -18,8 +18,8 @@
 #ifndef DATABASEJSONPLUGIN_H
 #define DATABASEJSONPLUGIN_H
 
-#include <QObject>
 #include <QDir>
+#include <QObject>
 
 #include "plugin/DBKVPluginInterface.h"
 

@@ -20,21 +20,22 @@
 
 #include <QThread>
 
-#include "cli/cli.h"
 #include "CoreInterface.h"
+#include "cli/cli.h"
 
 class CustomMenu : public cli::Menu
 {
 public:
     CustomMenu(const std::string& name, const std::string& desc = "(menu)")
-        : cli::Menu(name, desc) {}
+        : cli::Menu(name, desc)
+    {}
 
     void setCore(CoreInterface* core) { m_core = core; };
 
     std::string Prompt() const
     {
         QString currentAccountId = m_core->getCurrentProfileId();
-        if (currentAccountId.isEmpty()) {
+        if( currentAccountId.isEmpty() ) {
             return cli::Menu::Prompt() + " (none)> ";
         } else {
             // Get account name

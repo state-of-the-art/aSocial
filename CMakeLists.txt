@@ -27,6 +27,12 @@ include(common.cmake)
 # Build plugins
 include(plugins.cmake)
 
+option(BUILD_INTEGRATION_TESTS "Enable integration tests to be built" OFF)
+
+if(BUILD_INTEGRATION_TESTS)
+    add_subdirectory(tests)
+endif()
+
 find_package(Qt6 COMPONENTS Core LinguistTools REQUIRED)
 
 # Listing the available sources to build

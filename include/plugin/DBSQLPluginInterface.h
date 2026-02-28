@@ -66,7 +66,7 @@ class QSqlDatabase;
 class DBSQLPluginInterface : public PluginInterface
 {
 public:
-    virtual ~DBSQLPluginInterface() {};
+    virtual ~DBSQLPluginInterface(){};
 
     /**
      * @brief Return the plugin-type identifier.

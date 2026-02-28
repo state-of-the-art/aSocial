@@ -16,8 +16,8 @@
 // Author: Rabit (@rabits)
 
 //#include <QtGui/QGuiApplication>
-#include <QCoreApplication>
 #include <QCommandLineParser>
+#include <QCoreApplication>
 #include <QLocale>
 #include <QTranslator>
 
@@ -25,13 +25,13 @@
 
 Q_LOGGING_CATEGORY(Cm, "main")
 
+#include "core.h"
 #include "plugins.h"
 #include "settings.h"
-#include "core.h"
 
 #include "plugin/UiPluginInterface.h"
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     qCDebug(Cm, "Init v%s", PROJECT_VERSION);
 
@@ -45,14 +45,14 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOptions({
-        {"no-gui", QCoreApplication::translate("main", "Load CMD instead of GUI in case GUI is available")},
+        {"no-ui", QCoreApplication::translate("main", "Load CMD instead of GUI in case GUI is available")},
     });
     parser.process(*app.data());
 
     // Loading translations
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();
-    for( const QString &locale : uiLanguages ) {
+    for( const QString& locale : uiLanguages ) {
         const QString baseName = "asocial_" + QLocale(locale).name();
         if( translator.load(":/i18n/" + baseName) ) {
             app->installTranslator(&translator);
@@ -67,22 +67,24 @@ int main(int argc, char *argv[])
     Settings::I();
 
     qCInfo(Cm, "Init core...");
+    Core::I()->setApp(app.data());
     Core::I()->setDBKVPlugin("dbkv-json");
     Core::I()->setDBSQLPlugin("dbsql-sqlite");
 
-    if( parser.isSet("no-gui") ) {
+    if( parser.isSet("no-ui") ) {
         // Init console application
         qCDebug(Cm, "aSocial - console mode");
     } else {
         // Init GUI application
-        qCDebug(Cm, "aSocial - GUI mode");
+        qCDebug(Cm, "aSocial - UI mode");
     }
 
     // Test cli ui
     Settings::I()->setting("plugins.ui.cmd.active", true);
     Plugins::I()->settingActivePlugin("plugins.ui.cmd.active", "ui-cmd");
     Plugins::I()->activateInterface("ui-cmd", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));
-    UiPluginInterface* plugin = qobject_cast<UiPluginInterface *>(Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-cmd"));
+    UiPluginInterface* plugin = qobject_cast<UiPluginInterface*>(
+        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-cmd"));
     if( plugin == nullptr ) {
         qCFatal(Cm, "Unable to locate UI plugin");
         return 1;

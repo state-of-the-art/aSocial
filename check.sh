@@ -78,4 +78,13 @@ if [ "${blank_char_end}" ]; then
     errors=$((${errors} + $(echo "${blank_char_end}" | wc -l)))
 fi
 
+echo
+echo '---------------------- clang-format verify ----------------------'
+echo
+reformat=$(git clang-format origin/master --quiet --diff)
+if [ "${reformat}" ]; then
+    echo "ERROR: Please run 'git clang-format': \n${reformat}"
+    errors=$((${errors} + $(echo "${reformat}" | wc -l)))
+fi
+
 exit ${errors}

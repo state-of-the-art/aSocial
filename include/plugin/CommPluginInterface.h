@@ -20,8 +20,8 @@
 
 // General communication interface which allow to transfer data from one point to another
 
-#include <QStringList>
 #include "PluginInterface.h"
+#include <QStringList>
 
 #define CommPluginInterface_iid "io.stateoftheart.asocial.plugin.CommPluginInterface"
 

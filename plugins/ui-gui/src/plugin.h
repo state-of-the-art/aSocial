@@ -18,8 +18,8 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
-#include <QObject>
 #include "plugin/UiPluginInterface.h"
+#include <QObject>
 
 class Plugin : public QObject, public UiPluginInterface
 {
@@ -29,7 +29,7 @@ class Plugin : public QObject, public UiPluginInterface
 
 public:
     Plugin() {}
-    static Plugin *s_pInstance;
+    static Plugin* s_pInstance;
     ~Plugin() override {}
 
     // PluginInterface

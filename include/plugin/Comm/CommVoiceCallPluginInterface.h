@@ -20,8 +20,8 @@
 
 // Voice communication interface to make the phone calls
 
-#include <QStringList>
 #include "../CommPluginInterface.h"
+#include <QStringList>
 
 #define CommVoiceCallPluginInterface_iid "io.stateoftheart.asocial.plugin.CommVoiceCallPluginInterface"
 

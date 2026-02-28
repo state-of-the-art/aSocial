@@ -18,12 +18,14 @@
 #ifndef CORE_H
 #define CORE_H
 
-#include <QObject>
-#include <QVariantMap>
-#include <QUuid>
 #include "CoreInterface.h"
 #include "plugin/DBKVPluginInterface.h"
 #include "plugin/DBSQLPluginInterface.h"
+#include <QObject>
+#include <QUuid>
+#include <QVariantMap>
+
+class QCoreApplication;
 
 class Core : public QObject, public CoreInterface
 {
@@ -31,8 +33,9 @@ class Core : public QObject, public CoreInterface
     Q_INTERFACES(CoreInterface)
 
 public:
-    inline static Core* I() {
-        if (s_pInstance == nullptr)
+    inline static Core* I()
+    {
+        if( s_pInstance == nullptr )
             s_pInstance = new Core();
         return s_pInstance;
     }
@@ -56,14 +59,20 @@ public:
     QStringList listProfiles() override;
     QVariantMap getProfileInfo(const QString& profileId) override;
 
+    // App core functions
+    void setApp(QCoreApplication* app);
+    void exit() override;
+
 signals:
     void currentProfileChanged(const QString& profileId) override;
 
 private:
-    explicit Core(QObject *parent = nullptr);
+    explicit Core(QObject* parent = nullptr);
     ~Core() override;
 
     static Core* s_pInstance;
+
+    QCoreApplication* m_app;
 
     DBKVPluginInterface* m_dbkv;
     DBSQLPluginInterface* m_dbsql;

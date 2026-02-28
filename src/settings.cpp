@@ -21,16 +21,16 @@
 
 Q_LOGGING_CATEGORY(CS, "Settings")
 
-Settings *Settings::s_pInstance = NULL;
+Settings* Settings::s_pInstance = NULL;
 
-Settings::Settings(QObject *parent)
+Settings::Settings(QObject* parent)
     : QObject(parent)
     , m_settings()
 {
     qCDebug(CS, "Create object");
 }
 
-Settings::Settings(QString &path, QObject *parent)
+Settings::Settings(QString& path, QObject* parent)
     : QObject(parent)
     , m_settings(path, QSettings::IniFormat)
 {
@@ -44,7 +44,7 @@ Settings::~Settings()
 
 QVariant Settings::setting(QString key, QVariant value)
 {
-    if( ! value.isNull() ) {
+    if( !value.isNull() ) {
         m_settings.setValue(key, value);
         emit settingChanged(key);
     }

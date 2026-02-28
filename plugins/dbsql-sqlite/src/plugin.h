@@ -18,9 +18,9 @@
 #ifndef DBSQLSQLITEPLUGIN_H
 #define DBSQLSQLITEPLUGIN_H
 
-#include <QObject>
-#include "plugin/DBSQLPluginInterface.h"
 #include "VirtualSqliteDatabase.h"
+#include "plugin/DBSQLPluginInterface.h"
+#include <QObject>
 
 class Plugin : public QObject, public DBSQLPluginInterface
 {

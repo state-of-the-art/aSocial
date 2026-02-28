@@ -18,13 +18,13 @@
 #ifndef ENCRYPTEDVFSCONTAINER_H
 #define ENCRYPTEDVFSCONTAINER_H
 
-#include <QObject>
-#include <QFile>
 #include <QByteArray>
-#include <QVector>
+#include <QFile>
+#include <QObject>
 #include <QSet>
 #include <QString>
 #include <QUuid>
+#include <QVector>
 
 #include "plugin/VFS/VFSContainerPluginInterface.h"
 
@@ -69,14 +69,12 @@ public:
      * @param maxContainerSize  Cap on new container size (0 = up to 4 GiB).
      * @return true on success.
      */
-    bool open(const QString& containerPath, const QString& passphrase,
-              quint64 maxContainerSize = 0);
+    bool open(const QString& containerPath, const QString& passphrase, quint64 maxContainerSize = 0);
 
     // ---- VFSContainerPluginInterface ----
     QStringList listFiles() const override;
-    QIODevice*  openFile(const QString& filename,
-                         QIODevice::OpenMode mode = QIODevice::ReadWrite) override;
-    QByteArray  readFile(const QString& filename) override;
+    QIODevice* openFile(const QString& filename, QIODevice::OpenMode mode = QIODevice::ReadWrite) override;
+    QByteArray readFile(const QString& filename) override;
     bool deleteFile(const QString& filename) override;
     bool renameFile(const QString& oldName, const QString& newName) override;
     void close() override;
@@ -102,28 +100,27 @@ signals:
 public:
     // ----- On-disk layout constants (all values in bytes) -----
 
-    static constexpr char     MAGIC[]          = "VFSCAKE1";
-    static constexpr quint64  MAGIC_SIZE       = 8;
-    static constexpr quint64  SALT_SIZE        = 16;   // crypto_pwhash_SALTBYTES
-    static constexpr quint64  SLOT_COUNT       = 4096;
-    static constexpr quint64  SLOT_SIZE        = 128;
-    static constexpr quint64  HEADER_OFFSET    = MAGIC_SIZE + SALT_SIZE;        // 24
-    static constexpr quint64  HEADER_SIZE      = SLOT_COUNT * SLOT_SIZE;        // 524 288
-    static constexpr quint64  TOTAL_HEADER     = HEADER_OFFSET + HEADER_SIZE;   // 524 312
-    static constexpr quint64  DATA_ALIGNMENT   = 4096;
-    static constexpr quint64  DATA_START       = ((TOTAL_HEADER + DATA_ALIGNMENT - 1)
-                                                   / DATA_ALIGNMENT) * DATA_ALIGNMENT;
+    static constexpr char MAGIC[] = "VFSCAKE1";
+    static constexpr quint64 MAGIC_SIZE = 8;
+    static constexpr quint64 SALT_SIZE = 16; // crypto_pwhash_SALTBYTES
+    static constexpr quint64 SLOT_COUNT = 4096;
+    static constexpr quint64 SLOT_SIZE = 128;
+    static constexpr quint64 HEADER_OFFSET = MAGIC_SIZE + SALT_SIZE;     // 24
+    static constexpr quint64 HEADER_SIZE = SLOT_COUNT * SLOT_SIZE;       // 524 288
+    static constexpr quint64 TOTAL_HEADER = HEADER_OFFSET + HEADER_SIZE; // 524 312
+    static constexpr quint64 DATA_ALIGNMENT = 4096;
+    static constexpr quint64 DATA_START = ((TOTAL_HEADER + DATA_ALIGNMENT - 1) / DATA_ALIGNMENT) * DATA_ALIGNMENT;
 
     // ----- Crypto constants -----
 
-    static constexpr int KEY_SIZE             = 32;
-    static constexpr int NONCE_SIZE           = 24;
-    static constexpr int MAC_SIZE             = 16;
-    static constexpr int SLOT_PLAINTEXT_SIZE  = static_cast<int>(SLOT_SIZE) - NONCE_SIZE - MAC_SIZE; // 88
-    static constexpr int MAX_FILENAME_BYTES   = 46;
+    static constexpr int KEY_SIZE = 32;
+    static constexpr int NONCE_SIZE = 24;
+    static constexpr int MAC_SIZE = 16;
+    static constexpr int SLOT_PLAINTEXT_SIZE = static_cast<int>(SLOT_SIZE) - NONCE_SIZE - MAC_SIZE; // 88
+    static constexpr int MAX_FILENAME_BYTES = 46;
 
     static constexpr unsigned long long KDF_OPSLIMIT = 4;
-    static constexpr size_t             KDF_MEMLIMIT = 128ULL * 1024 * 1024;
+    static constexpr size_t KDF_MEMLIMIT = 128ULL * 1024 * 1024;
 
 private:
     /**
@@ -136,14 +133,15 @@ private:
      *   [79..86]  usedSize     (uint64)
      *   [87]      flags        (uint8)
      */
-    struct FilePointer {
-        QUuid   id;
+    struct FilePointer
+    {
+        QUuid id;
         QString filename;
-        quint64 dataOffset     = 0;
-        quint64 allocatedSize  = 0;
-        quint64 usedSize       = 0;
-        quint8  flags          = 0;
-        int     slotIndex      = -1;  // runtime-only (not serialised)
+        quint64 dataOffset = 0;
+        quint64 allocatedSize = 0;
+        quint64 usedSize = 0;
+        quint8 flags = 0;
+        int slotIndex = -1; // runtime-only (not serialised)
     };
 
     bool createContainer(const QString& path, quint64 maxSize);
@@ -153,26 +151,26 @@ private:
     bool clearSlot(int slotIndex);
 
     QByteArray serializeFilePointer(const FilePointer& fp) const;
-    bool       deserializeFilePointer(const QByteArray& buf, FilePointer& fp) const;
+    bool deserializeFilePointer(const QByteArray& buf, FilePointer& fp) const;
 
     QByteArray readBlobFromDisk(const FilePointer& fp);
-    bool       writeBlobToDisk(FilePointer& fp, const QByteArray& plaintext);
+    bool writeBlobToDisk(FilePointer& fp, const QByteArray& plaintext);
 
     quint64 allocateBlock(quint64 requiredSize);
-    void    growContainer(quint64 requiredEnd);
+    void growContainer(quint64 requiredEnd);
 
     int findFileSlot(const QString& filename) const;
     int findFreeSlot() const;
 
     static quint64 nextPowerOf2(quint64 v);
-    static void    secureWipe(QByteArray& data);
+    static void secureWipe(QByteArray& data);
 
-    QFile                m_file;
-    QByteArray           m_key;
-    QByteArray           m_salt;
-    QVector<FilePointer> m_files;        // decoded slots for the current key
-    QSet<VirtualFile*>   m_openFiles;    // tracked for container-wide flush
-    bool                 m_isOpen = false;
+    QFile m_file;
+    QByteArray m_key;
+    QByteArray m_salt;
+    QVector<FilePointer> m_files;   // decoded slots for the current key
+    QSet<VirtualFile*> m_openFiles; // tracked for container-wide flush
+    bool m_isOpen = false;
 };
 
 #endif // ENCRYPTEDVFSCONTAINER_H

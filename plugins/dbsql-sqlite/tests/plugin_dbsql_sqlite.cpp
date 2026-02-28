@@ -15,10 +15,10 @@
 
 // Author: Rabit (@rabits)
 
-#include <QTest>
 #include <QBuffer>
-#include <QSqlQuery>
 #include <QSqlError>
+#include <QSqlQuery>
+#include <QTest>
 #include <QVariant>
 
 #include "../src/VirtualSqliteDatabase.h"
@@ -34,11 +34,10 @@ class TestDBSQLSqlite : public QObject
     Q_OBJECT
 
 private slots:
-    void initTestCase() {
-        QVERIFY(sodium_init() >= 0);
-    }
+    void initTestCase() { QVERIFY(sodium_init() >= 0); }
 
-    void testOpenAndClose() {
+    void testOpenAndClose()
+    {
         QBuffer device;
         device.open(QIODevice::ReadWrite);
 
@@ -51,7 +50,8 @@ private slots:
         db.close();
         QVERIFY(!db.isOpen());
     }
-    void testCreateTableAndInsert() {
+    void testCreateTableAndInsert()
+    {
         QBuffer device;
         device.open(QIODevice::ReadWrite);
 
@@ -69,7 +69,8 @@ private slots:
 
         db.close();
     }
-    void testFlushAndReopen() {
+    void testFlushAndReopen()
+    {
         QBuffer device;
         device.open(QIODevice::ReadWrite);
 
@@ -80,12 +81,9 @@ private slots:
             QVERIFY(handle.isValid());
 
             QSqlQuery q(handle);
-            QVERIFY(q.exec(QLatin1String(
-                "CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT)")));
-            QVERIFY(q.exec(QLatin1String(
-                "INSERT INTO kv VALUES ('greeting', 'hello')")));
-            QVERIFY(q.exec(QLatin1String(
-                "INSERT INTO kv VALUES ('farewell', 'goodbye')")));
+            QVERIFY(q.exec(QLatin1String("CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT)")));
+            QVERIFY(q.exec(QLatin1String("INSERT INTO kv VALUES ('greeting', 'hello')")));
+            QVERIFY(q.exec(QLatin1String("INSERT INTO kv VALUES ('farewell', 'goodbye')")));
 
             db.close(); // flushes to device
         }
@@ -110,7 +108,8 @@ private slots:
             db.close();
         }
     }
-    void testBlobStorage() {
+    void testBlobStorage()
+    {
         QBuffer device;
         device.open(QIODevice::ReadWrite);
 
@@ -123,8 +122,7 @@ private slots:
             QVERIFY(handle.isValid());
 
             QSqlQuery q(handle);
-            QVERIFY(q.exec(QLatin1String(
-                "CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)")));
+            QVERIFY(q.exec(QLatin1String("CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)")));
 
             q.prepare(QLatin1String("INSERT INTO blobs (id, data) VALUES (1, :data)"));
             q.bindValue(QLatin1String(":data"), blobData);
@@ -147,7 +145,8 @@ private slots:
             db.close();
         }
     }
-    void testMultipleTables() {
+    void testMultipleTables()
+    {
         QBuffer device;
         device.open(QIODevice::ReadWrite);
 

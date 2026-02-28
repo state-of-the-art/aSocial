@@ -18,8 +18,8 @@
 #include "plugin.h"
 #include "EncryptedVFSContainer.h"
 
-#include <QLoggingCategory>
 #include <sodium.h>
+#include <QLoggingCategory>
 
 Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
@@ -41,13 +41,13 @@ QStringList Plugin::requirements() const
 
 bool Plugin::init()
 {
-    if (isInitialized())
+    if( isInitialized() )
         return true;
 
     qCDebug(C) << __func__;
     Plugin::s_pInstance = this;
 
-    if (sodium_init() < 0) {
+    if( sodium_init() < 0 ) {
         qCCritical(C) << "libsodium initialization failed";
         emit appError(name() + QLatin1String(": libsodium init failed"));
         return false;
@@ -61,7 +61,7 @@ bool Plugin::init()
 
 bool Plugin::deinit()
 {
-    if (!isInitialized())
+    if( !isInitialized() )
         return true;
     qCDebug(C) << __func__;
 
@@ -82,12 +82,11 @@ bool Plugin::configure()
 // VFSPluginInterface – container factory
 // ---------------------------------------------------------------------------
 
-VFSContainerPluginInterface* Plugin::openContainer(const QString& containerPath,
-                                                    const QString& passphrase,
-                                                    quint64 maxContainerSize)
+VFSContainerPluginInterface* Plugin::openContainer(
+    const QString& containerPath, const QString& passphrase, quint64 maxContainerSize)
 {
     auto* container = new EncryptedVFSContainer();
-    if (!container->open(containerPath, passphrase, maxContainerSize)) {
+    if( !container->open(containerPath, passphrase, maxContainerSize) ) {
         delete container;
         return nullptr;
     }

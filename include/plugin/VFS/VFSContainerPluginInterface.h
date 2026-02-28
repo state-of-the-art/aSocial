@@ -77,8 +77,7 @@ public:
      * @param mode      Qt open-mode flags (default ReadWrite).
      * @return QIODevice*, or @c nullptr on error.
      */
-    virtual QIODevice* openFile(const QString& filename,
-                                QIODevice::OpenMode mode = QIODevice::ReadWrite) = 0;
+    virtual QIODevice* openFile(const QString& filename, QIODevice::OpenMode mode = QIODevice::ReadWrite) = 0;
 
     /**
      * @brief Convenience: read the full decrypted content of a virtual file.
@@ -93,8 +92,7 @@ public:
     /**
      * @brief Rename a virtual file (metadata-only in the header slot).
      */
-    virtual bool renameFile(const QString& oldName,
-                            const QString& newName) = 0;
+    virtual bool renameFile(const QString& oldName, const QString& newName) = 0;
 
     /**
      * @brief Flush all open files and close the container.

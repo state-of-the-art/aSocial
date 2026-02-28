@@ -16,41 +16,32 @@
 
 # Author: Rabit (@rabits)
 
-# Script run unit tests and does plugins standalone validation for asocial using docker qt image
+# Script run unit & integration tests and does plugins standalone validation for asocial using docker qt image
 
 BASEDIR=$(dirname `readlink -f $0`)
 
-# Check if we have no image for the build
-if [ ! "$(docker images -q asocial:build)" ]; then
-    docker build -t asocial:build -f "$BASEDIR/docker/Dockerfile.build" "$BASEDIR/docker"
-else
-    # Check if the image is fresh in comparison to the dockerfile
-    docker_image_ts=$(date +%s --date "$(docker image inspect --format "{{.Created}}" asocial:build)")
-    dockerfile_ts=$(stat -c '%Y' "$BASEDIR/docker/Dockerfile.build")
-    if [ "$docker_image_ts" -lt "$dockerfile_ts" ]; then
-        docker rmi asocial:build
-        docker build -t asocial:build -f "$BASEDIR/docker/Dockerfile.build" "$BASEDIR/docker"
-    fi
-fi
+. "$BASEDIR/_prepare.sh"
 
 "$BASEDIR/check.sh"
+
+echo
+echo =========== BUILDING DEBUG and TESTS ===========
 
 # Build the entire project
 docker run -i --rm \
     -v "${BASEDIR}:/home/user/project:ro" \
     -v "${BASEDIR}/build/downloads:/home/user/downloads:rw" \
     asocial:build \
-    sh -ec '
-[ -d build ] || mkdir -p build
-sudo chmod -R o+rwX ./downloads ./build
-qt-cmake ./project -G Ninja -B ./build -DBUILD_TESTS=ON -DLIBS_DOWNLOAD_CACHE_DIR=/home/user/downloads
-cmake --build ./build
+    sh -ec "$(getBuildScript 'Debug' '-DBUILD_TESTS=ON -DBUILD_INTEGRATION_TESTS=ON' 'echo
+echo =========== RUNNING UNIT TESTS ===========
+find ./build/plugins -name "DartConfiguration.tcl" -execdir ctest -V \;
+
+echo =========== RUNNING CLI INTEGRATION TESTS ===========
+./build/tests/cli_integration_tests
+')"
 
 echo
-echo =========== RUNNING TESTS ===========
-find ./build/plugins -name "DartConfiguration.tcl" -execdir ctest -V \;
-'
-
+echo =========== RUNNING STANDALONE PLUGINS BUILD ===========
 # Make sure each plugin can be built separately
 plugins=''
 plugins_count=0

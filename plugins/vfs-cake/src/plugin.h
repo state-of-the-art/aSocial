@@ -18,8 +18,8 @@
 #ifndef VFSCAKEPLUGIN_H
 #define VFSCAKEPLUGIN_H
 
-#include <QObject>
 #include "plugin/VFSPluginInterface.h"
+#include <QObject>
 
 class Plugin : public QObject, public VFSPluginInterface
 {
@@ -42,9 +42,7 @@ public:
 
     // VFSPluginInterface
     VFSContainerPluginInterface* openContainer(
-        const QString& containerPath,
-        const QString& passphrase,
-        quint64 maxContainerSize = 0) override;
+        const QString& containerPath, const QString& passphrase, quint64 maxContainerSize = 0) override;
 
 signals:
     void appNotice(QString msg) override;

@@ -20,8 +20,8 @@
 
 #include "PluginInterface.h"
 
-#include <QVariantMap>
 #include <QStringList>
+#include <QVariantMap>
 
 #define DBKVPluginInterface_iid "io.stateoftheart.asocial.plugin.DBKVPluginInterface"
 
@@ -31,7 +31,7 @@
 class DBKVPluginInterface : public PluginInterface
 {
 public:
-    virtual ~DBKVPluginInterface() {};
+    virtual ~DBKVPluginInterface(){};
 
     /**
      * @brief Return plugin type

@@ -19,9 +19,9 @@
 #include "VirtualFile.h"
 
 #include <QFileInfo>
+#include <QLoggingCategory>
 #include <QStorageInfo>
 #include <QtEndian>
-#include <QLoggingCategory>
 
 #include <sodium.h>
 
@@ -33,12 +33,11 @@ Q_LOGGING_CATEGORY(EVFS, "EncryptedVFSContainer")
 
 EncryptedVFSContainer::EncryptedVFSContainer(QObject* parent)
     : QObject(parent)
-{
-}
+{}
 
 EncryptedVFSContainer::~EncryptedVFSContainer()
 {
-    if (m_isOpen)
+    if( m_isOpen )
         close();
 }
 
@@ -46,31 +45,29 @@ EncryptedVFSContainer::~EncryptedVFSContainer()
 // Open / close
 // ---------------------------------------------------------------------------
 
-bool EncryptedVFSContainer::open(const QString& containerPath,
-                                  const QString& passphrase,
-                                  quint64 maxContainerSize)
+bool EncryptedVFSContainer::open(const QString& containerPath, const QString& passphrase, quint64 maxContainerSize)
 {
-    if (m_isOpen)
+    if( m_isOpen )
         close();
 
-    Q_ASSERT(crypto_aead_xchacha20poly1305_ietf_KEYBYTES  == KEY_SIZE);
+    Q_ASSERT(crypto_aead_xchacha20poly1305_ietf_KEYBYTES == KEY_SIZE);
     Q_ASSERT(crypto_aead_xchacha20poly1305_ietf_NPUBBYTES == NONCE_SIZE);
-    Q_ASSERT(crypto_aead_xchacha20poly1305_ietf_ABYTES    == MAC_SIZE);
+    Q_ASSERT(crypto_aead_xchacha20poly1305_ietf_ABYTES == MAC_SIZE);
     Q_ASSERT(crypto_pwhash_SALTBYTES == SALT_SIZE);
 
     const bool isNew = !QFile::exists(containerPath);
-    if (isNew && !createContainer(containerPath, maxContainerSize))
+    if( isNew && !createContainer(containerPath, maxContainerSize) )
         return false;
 
     m_file.setFileName(containerPath);
-    if (!m_file.open(QIODevice::ReadWrite)) {
+    if( !m_file.open(QIODevice::ReadWrite) ) {
         qCCritical(EVFS) << "Cannot open container:" << containerPath;
         return false;
     }
 
     // Verify magic header
     QByteArray magic = m_file.read(MAGIC_SIZE);
-    if (magic != QByteArray(MAGIC, MAGIC_SIZE)) {
+    if( magic != QByteArray(MAGIC, MAGIC_SIZE) ) {
         qCCritical(EVFS) << "Invalid magic header";
         m_file.close();
         return false;
@@ -78,14 +75,14 @@ bool EncryptedVFSContainer::open(const QString& containerPath,
 
     // Read global salt
     m_salt = m_file.read(static_cast<qint64>(SALT_SIZE));
-    if (static_cast<quint64>(m_salt.size()) != SALT_SIZE) {
+    if( static_cast<quint64>(m_salt.size()) != SALT_SIZE ) {
         qCCritical(EVFS) << "Cannot read salt";
         m_file.close();
         return false;
     }
 
     // Derive the encryption key from passphrase + salt
-    if (!deriveKey(passphrase, m_salt)) {
+    if( !deriveKey(passphrase, m_salt) ) {
         qCCritical(EVFS) << "Key derivation failed (out of memory?)";
         m_file.close();
         return false;
@@ -96,20 +93,19 @@ bool EncryptedVFSContainer::open(const QString& containerPath,
     // Trial-decrypt every slot to discover files belonging to this key
     loadSlots();
 
-    qCDebug(EVFS) << "Container opened:" << containerPath
-                   << " files:" << m_files.size();
+    qCDebug(EVFS) << "Container opened:" << containerPath << " files:" << m_files.size();
     return true;
 }
 
 void EncryptedVFSContainer::close()
 {
-    if (!m_isOpen)
+    if( !m_isOpen )
         return;
 
     // Flush every still-open virtual file (copy the set because
     // VirtualFile::flush may call unregisterOpenFile)
     const QSet<VirtualFile*> snapshot = m_openFiles;
-    for (VirtualFile* vf : snapshot)
+    for( VirtualFile* vf : snapshot )
         vf->flush();
     m_openFiles.clear();
 
@@ -130,54 +126,52 @@ QStringList EncryptedVFSContainer::listFiles() const
 {
     QStringList names;
     names.reserve(m_files.size());
-    for (const auto& fp : m_files)
+    for( const auto& fp : m_files )
         names.append(fp.filename);
     return names;
 }
 
-QIODevice* EncryptedVFSContainer::openFile(const QString& filename,
-                                            QIODevice::OpenMode mode)
+QIODevice* EncryptedVFSContainer::openFile(const QString& filename, QIODevice::OpenMode mode)
 {
-    if (!m_isOpen)
+    if( !m_isOpen )
         return nullptr;
 
     const int idx = findFileSlot(filename);
     QByteArray data;
     int slotIndex;
 
-    if (idx >= 0) {
+    if( idx >= 0 ) {
         // ---- Existing file ----
         slotIndex = m_files[idx].slotIndex;
-        if (!(mode & QIODevice::Truncate) && m_files[idx].usedSize > 0)
+        if( !(mode & QIODevice::Truncate) && m_files[idx].usedSize > 0 )
             data = readBlobFromDisk(m_files[idx]);
     } else {
         // ---- New file ----
-        if (!(mode & QIODevice::WriteOnly))
-            return nullptr;   // cannot create without write intent
+        if( !(mode & QIODevice::WriteOnly) )
+            return nullptr; // cannot create without write intent
 
         QByteArray nameUtf8 = filename.toUtf8();
-        if (nameUtf8.size() > MAX_FILENAME_BYTES) {
-            qCWarning(EVFS) << "Filename too long (max" << MAX_FILENAME_BYTES
-                            << "UTF-8 bytes):" << filename;
+        if( nameUtf8.size() > MAX_FILENAME_BYTES ) {
+            qCWarning(EVFS) << "Filename too long (max" << MAX_FILENAME_BYTES << "UTF-8 bytes):" << filename;
             return nullptr;
         }
 
         slotIndex = findFreeSlot();
-        if (slotIndex < 0) {
+        if( slotIndex < 0 ) {
             qCWarning(EVFS) << "No free header slots (max" << SLOT_COUNT << ")";
             return nullptr;
         }
 
         FilePointer fp;
-        fp.id            = QUuid::createUuid();
-        fp.filename      = filename;
-        fp.dataOffset    = allocateBlock(DATA_ALIGNMENT);
+        fp.id = QUuid::createUuid();
+        fp.filename = filename;
+        fp.dataOffset = allocateBlock(DATA_ALIGNMENT);
         fp.allocatedSize = DATA_ALIGNMENT;
-        fp.usedSize      = 0;
-        fp.flags         = 0;
-        fp.slotIndex     = slotIndex;
+        fp.usedSize = 0;
+        fp.flags = 0;
+        fp.slotIndex = slotIndex;
 
-        if (!encryptSlot(slotIndex, fp))
+        if( !encryptSlot(slotIndex, fp) )
             return nullptr;
 
         m_files.append(fp);
@@ -187,7 +181,7 @@ QIODevice* EncryptedVFSContainer::openFile(const QString& filename,
 
     // QBuffer doesn't recognise Truncate — strip it before open()
     const QIODevice::OpenMode bufMode = mode & ~QIODevice::Truncate;
-    if (!vf->open(bufMode)) {
+    if( !vf->open(bufMode) ) {
         delete vf;
         secureWipe(data);
         return nullptr;
@@ -200,47 +194,44 @@ QIODevice* EncryptedVFSContainer::openFile(const QString& filename,
 
 QByteArray EncryptedVFSContainer::readFile(const QString& filename)
 {
-    if (!m_isOpen)
+    if( !m_isOpen )
         return {};
     const int idx = findFileSlot(filename);
-    if (idx < 0 || m_files[idx].usedSize == 0)
+    if( idx < 0 || m_files[idx].usedSize == 0 )
         return {};
     return readBlobFromDisk(m_files[idx]);
 }
 
-bool EncryptedVFSContainer::writeFileData(int slotIndex,
-                                           const QByteArray& plaintext)
+bool EncryptedVFSContainer::writeFileData(int slotIndex, const QByteArray& plaintext)
 {
     int fileIdx = -1;
-    for (int i = 0; i < m_files.size(); ++i) {
-        if (m_files[i].slotIndex == slotIndex) {
+    for( int i = 0; i < m_files.size(); ++i ) {
+        if( m_files[i].slotIndex == slotIndex ) {
             fileIdx = i;
             break;
         }
     }
-    if (fileIdx < 0)
+    if( fileIdx < 0 )
         return false;
 
     FilePointer& fp = m_files[fileIdx];
 
-    if (plaintext.isEmpty()) {
+    if( plaintext.isEmpty() ) {
         fp.usedSize = 0;
         return encryptSlot(slotIndex, fp);
     }
 
     // Check whether the current allocation can hold the new blob
-    const quint64 blobSize = static_cast<quint64>(NONCE_SIZE)
-                           + static_cast<quint64>(plaintext.size())
-                           + MAC_SIZE;
-    if (blobSize > fp.allocatedSize) {
+    const quint64 blobSize = static_cast<quint64>(NONCE_SIZE) + static_cast<quint64>(plaintext.size()) + MAC_SIZE;
+    if( blobSize > fp.allocatedSize ) {
         const quint64 newAlloc = nextPowerOf2(blobSize);
-        fp.dataOffset    = allocateBlock(newAlloc);
+        fp.dataOffset = allocateBlock(newAlloc);
         fp.allocatedSize = newAlloc;
     }
 
     fp.usedSize = static_cast<quint64>(plaintext.size());
 
-    if (!writeBlobToDisk(fp, plaintext))
+    if( !writeBlobToDisk(fp, plaintext) )
         return false;
 
     return encryptSlot(slotIndex, fp);
@@ -249,24 +240,23 @@ bool EncryptedVFSContainer::writeFileData(int slotIndex,
 bool EncryptedVFSContainer::deleteFile(const QString& filename)
 {
     const int idx = findFileSlot(filename);
-    if (idx < 0)
+    if( idx < 0 )
         return false;
 
-    if (!clearSlot(m_files[idx].slotIndex))
+    if( !clearSlot(m_files[idx].slotIndex) )
         return false;
 
     m_files.removeAt(idx);
     return true;
 }
 
-bool EncryptedVFSContainer::renameFile(const QString& oldName,
-                                        const QString& newName)
+bool EncryptedVFSContainer::renameFile(const QString& oldName, const QString& newName)
 {
     const int idx = findFileSlot(oldName);
-    if (idx < 0)
+    if( idx < 0 )
         return false;
 
-    if (newName.toUtf8().size() > MAX_FILENAME_BYTES)
+    if( newName.toUtf8().size() > MAX_FILENAME_BYTES )
         return false;
 
     m_files[idx].filename = newName;
@@ -282,19 +272,16 @@ quint64 EncryptedVFSContainer::containerSize() const
 // Container creation
 // ---------------------------------------------------------------------------
 
-bool EncryptedVFSContainer::createContainer(const QString& path,
-                                             quint64 maxSize)
+bool EncryptedVFSContainer::createContainer(const QString& path, quint64 maxSize)
 {
     QStorageInfo storage(QFileInfo(path).absolutePath());
     const quint64 freeSpace = static_cast<quint64>(storage.bytesAvailable());
 
-    const quint64 minSize = DATA_START + 1024 * 1024;   // header + 1 MiB data
-    const quint64 ceiling = (maxSize > 0)
-                          ? qMin(maxSize, freeSpace / 2)
-                          : qMin(freeSpace / 2,
-                                 quint64(4ULL * 1024 * 1024 * 1024));
+    const quint64 minSize = DATA_START + 1024 * 1024; // header + 1 MiB data
+    const quint64 ceiling = (maxSize > 0) ? qMin(maxSize, freeSpace / 2)
+                                          : qMin(freeSpace / 2, quint64(4ULL * 1024 * 1024 * 1024));
 
-    if (ceiling < minSize) {
+    if( ceiling < minSize ) {
         qCCritical(EVFS) << "Not enough disk space to create container";
         return false;
     }
@@ -302,20 +289,19 @@ bool EncryptedVFSContainer::createContainer(const QString& path,
     // Randomise size within [minSize, ceiling]
     quint64 offset = 0;
     const quint64 range = ceiling - minSize;
-    if (range > 0) {
+    if( range > 0 ) {
         randombytes_buf(&offset, sizeof(offset));
         offset %= range;
     }
-    quint64 containerSize = ((minSize + offset + DATA_ALIGNMENT - 1)
-                              / DATA_ALIGNMENT) * DATA_ALIGNMENT;
+    quint64 containerSize = ((minSize + offset + DATA_ALIGNMENT - 1) / DATA_ALIGNMENT) * DATA_ALIGNMENT;
 
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) {
+    if( !file.open(QIODevice::WriteOnly) ) {
         qCCritical(EVFS) << "Cannot create file:" << path;
         return false;
     }
 
-    if (!file.resize(static_cast<qint64>(containerSize))) {
+    if( !file.resize(static_cast<qint64>(containerSize)) ) {
         qCCritical(EVFS) << "Cannot resize container to" << containerSize;
         file.close();
         QFile::remove(path);
@@ -327,11 +313,10 @@ bool EncryptedVFSContainer::createContainer(const QString& path,
     constexpr quint64 CHUNK = 1024 * 1024;
     QByteArray chunk(static_cast<int>(CHUNK), Qt::Uninitialized);
     quint64 remaining = containerSize;
-    while (remaining > 0) {
+    while( remaining > 0 ) {
         const quint64 n = qMin(remaining, CHUNK);
         randombytes_buf(chunk.data(), static_cast<size_t>(n));
-        if (file.write(chunk.constData(), static_cast<qint64>(n))
-                != static_cast<qint64>(n)) {
+        if( file.write(chunk.constData(), static_cast<qint64>(n)) != static_cast<qint64>(n) ) {
             qCCritical(EVFS) << "Write error during container creation";
             file.close();
             QFile::remove(path);
@@ -363,8 +348,7 @@ bool EncryptedVFSContainer::createContainer(const QString& path,
 // Key derivation
 // ---------------------------------------------------------------------------
 
-bool EncryptedVFSContainer::deriveKey(const QString& passphrase,
-                                      const QByteArray& salt)
+bool EncryptedVFSContainer::deriveKey(const QString& passphrase, const QByteArray& salt)
 {
     m_key.resize(KEY_SIZE);
     QByteArray pw = passphrase.toUtf8();
@@ -381,7 +365,7 @@ bool EncryptedVFSContainer::deriveKey(const QString& passphrase,
 
     secureWipe(pw);
 
-    if (rc != 0) {
+    if( rc != 0 ) {
         secureWipe(m_key);
         return false;
     }
@@ -396,15 +380,15 @@ bool EncryptedVFSContainer::loadSlots()
 {
     m_files.clear();
 
-    for (quint32 i = 0; i < SLOT_COUNT; ++i) {
+    for( quint32 i = 0; i < SLOT_COUNT; ++i ) {
         const quint64 off = HEADER_OFFSET + static_cast<quint64>(i) * SLOT_SIZE;
         m_file.seek(static_cast<qint64>(off));
         QByteArray raw = m_file.read(SLOT_SIZE);
-        if (raw.size() != static_cast<int>(SLOT_SIZE))
+        if( raw.size() != static_cast<int>(SLOT_SIZE) )
             continue;
 
         QByteArray nonce = raw.left(NONCE_SIZE);
-        QByteArray ct    = raw.mid(NONCE_SIZE);   // SLOT_PLAINTEXT_SIZE + MAC_SIZE = 104 B
+        QByteArray ct = raw.mid(NONCE_SIZE); // SLOT_PLAINTEXT_SIZE + MAC_SIZE = 104 B
 
         // Additional data: 4-byte LE slot index (binds ciphertext to position)
         quint32 idxLE = qToLittleEndian(i);
@@ -413,18 +397,19 @@ bool EncryptedVFSContainer::loadSlots()
         QByteArray pt(SLOT_PLAINTEXT_SIZE, 0);
         unsigned long long ptLen = 0;
 
-        if (crypto_aead_xchacha20poly1305_ietf_decrypt(
-                reinterpret_cast<unsigned char*>(pt.data()), &ptLen,
+        if( crypto_aead_xchacha20poly1305_ietf_decrypt(
+                reinterpret_cast<unsigned char*>(pt.data()),
+                &ptLen,
                 nullptr,
                 reinterpret_cast<const unsigned char*>(ct.constData()),
                 static_cast<unsigned long long>(ct.size()),
                 reinterpret_cast<const unsigned char*>(ad.constData()),
                 static_cast<unsigned long long>(ad.size()),
                 reinterpret_cast<const unsigned char*>(nonce.constData()),
-                reinterpret_cast<const unsigned char*>(m_key.constData())) == 0)
-        {
+                reinterpret_cast<const unsigned char*>(m_key.constData()))
+            == 0 ) {
             FilePointer fp;
-            if (deserializeFilePointer(pt, fp)) {
+            if( deserializeFilePointer(pt, fp) ) {
                 fp.slotIndex = static_cast<int>(i);
                 m_files.append(fp);
             }
@@ -453,16 +438,17 @@ bool EncryptedVFSContainer::encryptSlot(int slotIndex, const FilePointer& fp)
     QByteArray ct(SLOT_PLAINTEXT_SIZE + MAC_SIZE, 0);
     unsigned long long ctLen = 0;
 
-    if (crypto_aead_xchacha20poly1305_ietf_encrypt(
-            reinterpret_cast<unsigned char*>(ct.data()), &ctLen,
+    if( crypto_aead_xchacha20poly1305_ietf_encrypt(
+            reinterpret_cast<unsigned char*>(ct.data()),
+            &ctLen,
             reinterpret_cast<const unsigned char*>(pt.constData()),
             SLOT_PLAINTEXT_SIZE,
             reinterpret_cast<const unsigned char*>(ad.constData()),
             static_cast<unsigned long long>(ad.size()),
             nullptr,
             reinterpret_cast<const unsigned char*>(nonce.constData()),
-            reinterpret_cast<const unsigned char*>(m_key.constData())) != 0)
-    {
+            reinterpret_cast<const unsigned char*>(m_key.constData()))
+        != 0 ) {
         secureWipe(pt);
         return false;
     }
@@ -527,16 +513,15 @@ QByteArray EncryptedVFSContainer::serializeFilePointer(const FilePointer& fp) co
     return buf;
 }
 
-bool EncryptedVFSContainer::deserializeFilePointer(const QByteArray& buf,
-                                                    FilePointer& fp) const
+bool EncryptedVFSContainer::deserializeFilePointer(const QByteArray& buf, FilePointer& fp) const
 {
-    if (buf.size() < SLOT_PLAINTEXT_SIZE)
+    if( buf.size() < SLOT_PLAINTEXT_SIZE )
         return false;
 
     fp.id = QUuid::fromRfc4122(QByteArrayView(buf.constData(), 16));
 
     const quint8 nameLen = static_cast<quint8>(buf[16]);
-    if (nameLen > MAX_FILENAME_BYTES)
+    if( nameLen > MAX_FILENAME_BYTES )
         return false;
     fp.filename = QString::fromUtf8(buf.constData() + 17, nameLen);
 
@@ -546,10 +531,10 @@ bool EncryptedVFSContainer::deserializeFilePointer(const QByteArray& buf,
         return qFromLittleEndian(v);
     };
 
-    fp.dataOffset    = get64(63);
+    fp.dataOffset = get64(63);
     fp.allocatedSize = get64(71);
-    fp.usedSize      = get64(79);
-    fp.flags         = static_cast<quint8>(buf[87]);
+    fp.usedSize = get64(79);
+    fp.flags = static_cast<quint8>(buf[87]);
 
     return true;
 }
@@ -560,18 +545,18 @@ bool EncryptedVFSContainer::deserializeFilePointer(const QByteArray& buf,
 
 QByteArray EncryptedVFSContainer::readBlobFromDisk(const FilePointer& fp)
 {
-    if (fp.usedSize == 0)
+    if( fp.usedSize == 0 )
         return {};
 
     m_file.seek(static_cast<qint64>(fp.dataOffset));
 
     QByteArray nonce = m_file.read(NONCE_SIZE);
-    if (nonce.size() != NONCE_SIZE)
+    if( nonce.size() != NONCE_SIZE )
         return {};
 
     const quint64 ctSize = fp.usedSize + MAC_SIZE;
     QByteArray ct = m_file.read(static_cast<qint64>(ctSize));
-    if (static_cast<quint64>(ct.size()) != ctSize) {
+    if( static_cast<quint64>(ct.size()) != ctSize ) {
         secureWipe(nonce);
         return {};
     }
@@ -582,16 +567,17 @@ QByteArray EncryptedVFSContainer::readBlobFromDisk(const FilePointer& fp)
     QByteArray pt(static_cast<int>(fp.usedSize), 0);
     unsigned long long ptLen = 0;
 
-    if (crypto_aead_xchacha20poly1305_ietf_decrypt(
-            reinterpret_cast<unsigned char*>(pt.data()), &ptLen,
+    if( crypto_aead_xchacha20poly1305_ietf_decrypt(
+            reinterpret_cast<unsigned char*>(pt.data()),
+            &ptLen,
             nullptr,
             reinterpret_cast<const unsigned char*>(ct.constData()),
             static_cast<unsigned long long>(ct.size()),
             reinterpret_cast<const unsigned char*>(ad.constData()),
             static_cast<unsigned long long>(ad.size()),
             reinterpret_cast<const unsigned char*>(nonce.constData()),
-            reinterpret_cast<const unsigned char*>(m_key.constData())) != 0)
-    {
+            reinterpret_cast<const unsigned char*>(m_key.constData()))
+        != 0 ) {
         qCWarning(EVFS) << "Blob decryption failed for" << fp.filename;
         secureWipe(pt);
         secureWipe(ct);
@@ -604,8 +590,7 @@ QByteArray EncryptedVFSContainer::readBlobFromDisk(const FilePointer& fp)
     return pt;
 }
 
-bool EncryptedVFSContainer::writeBlobToDisk(FilePointer& fp,
-                                             const QByteArray& plaintext)
+bool EncryptedVFSContainer::writeBlobToDisk(FilePointer& fp, const QByteArray& plaintext)
 {
     QByteArray nonce(NONCE_SIZE, Qt::Uninitialized);
     randombytes_buf(nonce.data(), NONCE_SIZE);
@@ -615,16 +600,17 @@ bool EncryptedVFSContainer::writeBlobToDisk(FilePointer& fp,
     QByteArray ct(plaintext.size() + MAC_SIZE, 0);
     unsigned long long ctLen = 0;
 
-    if (crypto_aead_xchacha20poly1305_ietf_encrypt(
-            reinterpret_cast<unsigned char*>(ct.data()), &ctLen,
+    if( crypto_aead_xchacha20poly1305_ietf_encrypt(
+            reinterpret_cast<unsigned char*>(ct.data()),
+            &ctLen,
             reinterpret_cast<const unsigned char*>(plaintext.constData()),
             static_cast<unsigned long long>(plaintext.size()),
             reinterpret_cast<const unsigned char*>(ad.constData()),
             static_cast<unsigned long long>(ad.size()),
             nullptr,
             reinterpret_cast<const unsigned char*>(nonce.constData()),
-            reinterpret_cast<const unsigned char*>(m_key.constData())) != 0)
-    {
+            reinterpret_cast<const unsigned char*>(m_key.constData()))
+        != 0 ) {
         secureWipe(nonce);
         return false;
     }
@@ -635,7 +621,7 @@ bool EncryptedVFSContainer::writeBlobToDisk(FilePointer& fp,
 
     // Fill the rest of the allocated block with random (hides actual size)
     const quint64 written = static_cast<quint64>(NONCE_SIZE) + ctLen;
-    if (written < fp.allocatedSize) {
+    if( written < fp.allocatedSize ) {
         const quint64 padSize = fp.allocatedSize - written;
         QByteArray pad(static_cast<int>(padSize), Qt::Uninitialized);
         randombytes_buf(pad.data(), static_cast<size_t>(padSize));
@@ -658,17 +644,16 @@ quint64 EncryptedVFSContainer::allocateBlock(quint64 requiredSize)
     // Simple strategy: allocate at the end of the currently-used data area.
     // Old (now-unused) blocks become random-looking garbage.
     quint64 endOfData = DATA_START;
-    for (const auto& fp : m_files) {
+    for( const auto& fp : m_files ) {
         const quint64 end = fp.dataOffset + fp.allocatedSize;
-        if (end > endOfData)
+        if( end > endOfData )
             endOfData = end;
     }
 
-    const quint64 newOffset = ((endOfData + DATA_ALIGNMENT - 1)
-                                / DATA_ALIGNMENT) * DATA_ALIGNMENT;
+    const quint64 newOffset = ((endOfData + DATA_ALIGNMENT - 1) / DATA_ALIGNMENT) * DATA_ALIGNMENT;
 
     const quint64 requiredEnd = newOffset + requiredSize;
-    if (requiredEnd > static_cast<quint64>(m_file.size()))
+    if( requiredEnd > static_cast<quint64>(m_file.size()) )
         growContainer(requiredEnd);
 
     return newOffset;
@@ -681,8 +666,7 @@ void EncryptedVFSContainer::growContainer(quint64 requiredEnd)
     randombytes_buf(&padRaw, sizeof(padRaw));
     const quint64 padding = padRaw % (4 * 1024 * 1024);
 
-    quint64 newSize = ((requiredEnd + padding + DATA_ALIGNMENT - 1)
-                        / DATA_ALIGNMENT) * DATA_ALIGNMENT;
+    quint64 newSize = ((requiredEnd + padding + DATA_ALIGNMENT - 1) / DATA_ALIGNMENT) * DATA_ALIGNMENT;
 
     const quint64 oldSize = static_cast<quint64>(m_file.size());
     m_file.resize(static_cast<qint64>(newSize));
@@ -692,7 +676,7 @@ void EncryptedVFSContainer::growContainer(quint64 requiredEnd)
     constexpr quint64 CHUNK = 1024 * 1024;
     QByteArray buf(static_cast<int>(CHUNK), Qt::Uninitialized);
     quint64 remaining = newSize - oldSize;
-    while (remaining > 0) {
+    while( remaining > 0 ) {
         const quint64 n = qMin(remaining, CHUNK);
         randombytes_buf(buf.data(), static_cast<size_t>(n));
         m_file.write(buf.constData(), static_cast<qint64>(n));
@@ -710,8 +694,8 @@ void EncryptedVFSContainer::growContainer(quint64 requiredEnd)
 
 int EncryptedVFSContainer::findFileSlot(const QString& filename) const
 {
-    for (int i = 0; i < m_files.size(); ++i)
-        if (m_files[i].filename == filename)
+    for( int i = 0; i < m_files.size(); ++i )
+        if( m_files[i].filename == filename )
             return i;
     return -1;
 }
@@ -720,18 +704,18 @@ int EncryptedVFSContainer::findFreeSlot() const
 {
     QSet<int> used;
     used.reserve(m_files.size());
-    for (const auto& fp : m_files)
+    for( const auto& fp : m_files )
         used.insert(fp.slotIndex);
 
-    for (int i = 0; i < static_cast<int>(SLOT_COUNT); ++i)
-        if (!used.contains(i))
+    for( int i = 0; i < static_cast<int>(SLOT_COUNT); ++i )
+        if( !used.contains(i) )
             return i;
     return -1;
 }
 
 quint64 EncryptedVFSContainer::nextPowerOf2(quint64 v)
 {
-    if (v <= DATA_ALIGNMENT)
+    if( v <= DATA_ALIGNMENT )
         return DATA_ALIGNMENT;
     v--;
     v |= v >> 1;
@@ -745,7 +729,7 @@ quint64 EncryptedVFSContainer::nextPowerOf2(quint64 v)
 
 void EncryptedVFSContainer::secureWipe(QByteArray& data)
 {
-    if (!data.isEmpty())
+    if( !data.isEmpty() )
         sodium_memzero(data.data(), static_cast<size_t>(data.size()));
     data.clear();
 }

@@ -20,13 +20,14 @@
 #include "plugins.h"
 #include "settings.h"
 
+#include <QCoreApplication>
 #include <QLoggingCategory>
 
 Q_LOGGING_CATEGORY(Cc, "Core")
 
 Core* Core::s_pInstance = nullptr;
 
-Core::Core(QObject *parent)
+Core::Core(QObject* parent)
     : QObject(parent)
     , m_dbkv(nullptr)
     , m_dbsql(nullptr)
@@ -59,7 +60,7 @@ void Core::setDBKVPlugin(const QString& pluginName)
     m_dbkv = qobject_cast<DBKVPluginInterface*>(
         Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBKVPluginInterface", pluginName));
 
-    if (!m_dbkv) {
+    if( !m_dbkv ) {
         qCWarning(Cc) << "Failed to load DBKV plugin:" << pluginName;
     } else {
         qCDebug(Cc) << "DBKV plugin set to:" << pluginName;
@@ -71,12 +72,13 @@ void Core::setDBSQLPlugin(const QString& pluginName)
     // Enable SQL database plugin
     Settings::I()->setting("plugins.dbsql.sqlite.active", true);
     Plugins::I()->settingActivePlugin("plugins.dbsql.sqlite.active", "dbsql-sqlite");
-    Plugins::I()->activateInterface("dbsql-sqlite", QLatin1String("io.stateoftheart.asocial.plugin.DBSQLPluginInterface"));
+    Plugins::I()
+        ->activateInterface("dbsql-sqlite", QLatin1String("io.stateoftheart.asocial.plugin.DBSQLPluginInterface"));
 
     m_dbsql = qobject_cast<DBSQLPluginInterface*>(
         Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBSQLPluginInterface", pluginName));
 
-    if (!m_dbsql) {
+    if( !m_dbsql ) {
         qCWarning(Cc) << "Failed to load DBSQL plugin:" << pluginName;
     } else {
         qCDebug(Cc) << "DBSQL plugin set to:" << pluginName;
@@ -90,7 +92,7 @@ QString Core::getCurrentProfileId() const
 
 void Core::setCurrentProfileId(const QString& profileId)
 {
-    if (m_currentProfileId != profileId) {
+    if( m_currentProfileId != profileId ) {
         m_currentProfileId = profileId;
         emit currentProfileChanged(profileId);
         qCDebug(Cc) << "Current profile changed to:" << profileId;
@@ -99,12 +101,12 @@ void Core::setCurrentProfileId(const QString& profileId)
 
 QString Core::createProfile(const QString& name)
 {
-    if (!m_dbkv) {
+    if( !m_dbkv ) {
         qCWarning(Cc) << "No DBKV plugin available";
         return QString();
     }
 
-    if (!m_dbsql) {
+    if( !m_dbsql ) {
         qCWarning(Cc) << "No DBSQL plugin available";
         return QString();
     }
@@ -118,7 +120,7 @@ QString Core::createProfile(const QString& name)
     profileData["created"] = QDateTime::currentDateTime();
 
     // TODO: Move to DBSQL
-    if (!m_dbkv->storeObject("profile_" + profileIdStr, profileData)) {
+    if( !m_dbkv->storeObject("profile_" + profileIdStr, profileData) ) {
         qCWarning(Cc) << "Failed to create profile storage object";
         return QString();
     }
@@ -130,12 +132,12 @@ QString Core::createProfile(const QString& name)
 
 QString Core::importProfile(const QString& serializedData)
 {
-    if (!m_dbkv) {
+    if( !m_dbkv ) {
         qCWarning(Cc) << "No DBKV plugin available";
         return QString();
     }
 
-    if (!m_dbsql) {
+    if( !m_dbsql ) {
         qCWarning(Cc) << "No DBSQL plugin available";
         return QString();
     }
@@ -143,7 +145,7 @@ QString Core::importProfile(const QString& serializedData)
     QByteArray jsonData = QByteArray::fromBase64(serializedData.toUtf8());
     QJsonDocument doc = QJsonDocument::fromJson(jsonData);
 
-    if (!doc.isObject()) {
+    if( !doc.isObject() ) {
         qCWarning(Cc) << "Invalid serialized profile data";
         return QString();
     }
@@ -151,20 +153,20 @@ QString Core::importProfile(const QString& serializedData)
     QVariantMap profileData = doc.object().toVariantMap();
     QString profileId = profileData["id"].toString();
 
-    if (profileId.isEmpty()) {
+    if( profileId.isEmpty() ) {
         qCWarning(Cc) << "Profile data missing ID";
         return QString();
     }
 
     // TODO: Move to DBSQL
     // Check if profile already exists
-    if (m_dbkv->objectExists("profile_" + profileId)) {
+    if( m_dbkv->objectExists("profile_" + profileId) ) {
         qCWarning(Cc) << "Profile already exists:" << profileId;
         return QString();
     }
 
     // Store profile metadata
-    if (!m_dbkv->storeObject("profile_" + profileId, profileData)) {
+    if( !m_dbkv->storeObject("profile_" + profileId, profileData) ) {
         qCWarning(Cc) << "Unable to store profile:" << profileId;
         return QString();
     }
@@ -183,19 +185,19 @@ QString Core::exportProfile(const QString& profileId)
 
 bool Core::deleteProfile(const QString& profileId)
 {
-    if (!m_dbkv) {
+    if( !m_dbkv ) {
         qCWarning(Cc) << "No DBKV plugin available";
         return false;
     }
 
-    if (!m_dbsql) {
+    if( !m_dbsql ) {
         qCWarning(Cc) << "No DBSQL plugin available";
         return false;
     }
 
     // TODO: Move to DBSQL
-    if (m_dbkv->objectExists("profile_" + profileId)) {
-        if (!m_dbkv->deleteObject("profile_" + profileId)) {
+    if( m_dbkv->objectExists("profile_" + profileId) ) {
+        if( !m_dbkv->deleteObject("profile_" + profileId) ) {
             qCWarning(Cc) << "Failed to delete profile:" << profileId;
             return false;
         }
@@ -207,12 +209,12 @@ bool Core::deleteProfile(const QString& profileId)
 
 QStringList Core::listProfiles()
 {
-    if (!m_dbkv) {
+    if( !m_dbkv ) {
         qCWarning(Cc) << "No DBKV plugin available";
         return QStringList();
     }
 
-    if (!m_dbsql) {
+    if( !m_dbsql ) {
         qCWarning(Cc) << "No DBSQL plugin available";
         return QStringList();
     }
@@ -223,22 +225,32 @@ QStringList Core::listProfiles()
 
 QVariantMap Core::getProfileInfo(const QString& profileId)
 {
-    if (!m_dbkv) {
+    if( !m_dbkv ) {
         qCWarning(Cc) << "No DBKV plugin available";
         return QVariantMap();
     }
 
-    if (!m_dbsql) {
+    if( !m_dbsql ) {
         qCWarning(Cc) << "No DBSQL plugin available";
         return QVariantMap();
     }
 
     // TODO: Move to DBSQL
     QVariantMap object;
-    if (!m_dbkv->retrieveObject("profile_" + profileId, object)) {
+    if( !m_dbkv->retrieveObject("profile_" + profileId, object) ) {
         qCWarning(Cc) << "Failed to get profile:" << profileId;
         return QVariantMap();
     }
 
     return object;
+}
+
+void Core::setApp(QCoreApplication* app)
+{
+    m_app = app;
+}
+
+void Core::exit()
+{
+    m_app->exit(0);
 }

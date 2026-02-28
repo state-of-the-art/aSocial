@@ -19,8 +19,8 @@
 #define COREINTERFACE_H
 
 #include <QObject>
-#include <QVariantMap>
 #include <QStringList>
+#include <QVariantMap>
 
 class DBKVPluginInterface;
 class DBSQLPluginInterface;
@@ -50,6 +50,9 @@ public:
     virtual bool deleteProfile(const QString& profileId) = 0;
     virtual QStringList listProfiles() = 0;
     virtual QVariantMap getProfileInfo(const QString& profileId) = 0;
+
+    // Core app features
+    virtual void exit() = 0;
 
 signals:
     virtual void currentProfileChanged(const QString& profileId) = 0;
