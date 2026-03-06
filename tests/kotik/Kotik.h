@@ -15,31 +15,47 @@
 
 // Author: Rabit (@rabits)
 
-#ifndef PROCESSLOGMONITOR_H
-#define PROCESSLOGMONITOR_H
+#ifndef KOTIK_H
+#define KOTIK_H
 
 #include <QObject>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QTemporaryDir>
 
-class ProcessLogMonitor : public QObject
+/**
+ * @brief Full lifecycle wrapper for the aSocial CLI process.
+ *
+ * Creates an isolated temp directory, launches the AppImage with
+ * -w pointing there, and provides log monitoring for test assertions.
+ */
+class Kotik : public QObject
 {
     Q_OBJECT
-public:
-    explicit ProcessLogMonitor(QProcess* process, QObject* parent = nullptr);
 
-    // Validation on ALL output (stdout + stderr)
+public:
+    explicit Kotik(QObject* parent = nullptr);
+    ~Kotik();
+
+    void write(const QString& command);
+
+    bool exitApp(int timeoutMs = 3000);
+
+    QString tmpPath() const;
+    QString tmpFilePath(const QString& fileName) const;
+
+    int exitCode() const;
+
     bool contains(const QString& substring, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     bool contains(const QRegularExpression& regex) const;
     bool waitForLog(const QString& substring, int timeoutMs = 10000);
     bool waitForLog(const QRegularExpression& regex, int timeoutMs = 10000);
 
-    // Error check – looks only at stderr (logs), ignores normal stdout responses
     bool noErrorLogs() const;
 
     const QStringList& allLines() const { return m_lines; }
-    const QStringList& stderrLines() const { return m_stderrLines; } // if you ever need it
+    const QStringList& stderrLines() const { return m_stderrLines; }
 
     void clear();
 
@@ -48,17 +64,20 @@ signals:
     void outputUpdated();
 
 private slots:
+    void onProcessErrorOccurred(QProcess::ProcessError error);
+    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void onReadyReadStandardOutput();
     void onReadyReadStandardError();
 
 private:
     void processData(const QByteArray& data, QString& partialBuffer, bool isStderr);
 
-    QProcess* m_process = nullptr;
-    QStringList m_lines;       // combined for easy validation
-    QStringList m_stderrLines; // only stderr for noErrorLogs
+    QTemporaryDir m_tmpDir;
+    QProcess* m_process;
+    QStringList m_lines;
+    QStringList m_stderrLines;
     QString m_partialStdout;
     QString m_partialStderr;
 };
 
-#endif // PROCESSLOGMONITOR_H
+#endif // KOTIK_H

@@ -23,6 +23,9 @@
 #include "CoreInterface.h"
 #include "cli/cli.h"
 
+/**
+ * @brief Custom CLI menu that shows the current profile/persona in the prompt.
+ */
 class CustomMenu : public cli::Menu
 {
 public:
@@ -30,38 +33,56 @@ public:
         : cli::Menu(name, desc)
     {}
 
+    /** @brief Inject the CoreInterface pointer for prompt rendering. */
     void setCore(CoreInterface* core) { m_core = core; };
 
+    /** @brief Render the prompt with profile/persona info. */
     std::string Prompt() const
     {
-        QString currentAccountId = m_core->getCurrentProfileId();
-        if( currentAccountId.isEmpty() ) {
-            return cli::Menu::Prompt() + " (none)> ";
-        } else {
-            // Get account name
-            QVariantMap info = m_core->getProfileInfo(currentAccountId);
-            QString accountName = info.value("name", "unknown").toString();
-            return cli::Menu::Prompt() + " (" + accountName.toStdString() + ")> ";
-        }
+        if( !m_core->isProfileOpen() )
+            return cli::Menu::Prompt() + " (no profile)> ";
+
+        QString persona = m_core->currentPersonaName();
+        if( persona.isEmpty() )
+            return cli::Menu::Prompt() + " (profile)> ";
+
+        return cli::Menu::Prompt() + " (" + persona.toStdString() + ")> ";
     }
 
 private:
-    CoreInterface* m_core;
+    CoreInterface* m_core = nullptr;
 };
 
+/**
+ * @brief Worker thread that runs the interactive CLI session.
+ *
+ * All data access goes through CoreInterface CRUD methods;
+ * no direct database access from the UI layer.
+ */
 class UiWorker : public QThread
 {
     Q_OBJECT
 
 public:
+    /** @brief Build the complete CLI menu tree. */
     void configure();
     void setCore(CoreInterface* core) { m_core = core; };
 
 private:
     void run() override;
 
+    // Menu builders
+    void buildSettingsMenu();
+    void buildInitCommand();
+    void buildProfileMenu();
+    void buildPersonaMenu();
+    void buildContactMenu();
+    void buildGroupMenu();
+    void buildMessageMenu();
+    void buildEventMenu();
+
     std::unique_ptr<CustomMenu> root_menu;
-    CoreInterface* m_core;
+    CoreInterface* m_core = nullptr;
 };
 
 #endif // UIWORKER_H

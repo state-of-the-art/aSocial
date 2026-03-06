@@ -22,6 +22,10 @@ FROM stateoftheartio/qt6:6.10-gcc-aqt
 # * libgl-dev libvulkan-dev - for Qt GUI
 # * pkg-config - used to get lib dependencies for tox & other plugins
 # * file - used by appimagetool to build the package
-RUN sudo apt -qq update && sudo apt -q install -y libgl-dev libvulkan-dev pkg-config file \
+# * protobuf-compiler - to generate qt classes from proto specifications
+RUN sudo apt -qq update && sudo apt -q install -y libgl-dev libvulkan-dev pkg-config file protobuf-compiler \
     && sudo apt -qq clean \
     && sudo rm -rf /var/lib/apt/lists/*
+
+# We need QtProtobuf & QtGRPC modules as well
+RUN sudo aqt install-qt -O "$QT_PATH" linux desktop "$QT_VERSION" linux_gcc_64 -m qtgrpc

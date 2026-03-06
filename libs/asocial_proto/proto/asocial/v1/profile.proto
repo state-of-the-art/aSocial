@@ -1,0 +1,40 @@
+// Copyright (C) 2026  aSocial Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Schema definition for profile and persona storage.
+// These types map 1:1 to SQLite tables inside the encrypted VFS container.
+
+syntax = "proto3";
+
+package asocial.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Root identity stored once per VFS encryption layer.
+message Profile
+{
+    string uid = 1; // UUID
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+
+    string display_name = 4;
+    string bio = 5;
+    bytes avatar = 6; // SVG / PNG / JPEG thumbnail (≤ 64 KiB recommended)
+}
+
+// A persona is a contextual facet of a Profile (work, family, anon, …).
+// Every profile has at least one default persona.
+message Persona
+{
+    string uid = 1; // UUID
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+
+    string profile_uid = 4; // FK -> Profile.uid
+
+    string display_name = 5;
+    string bio = 6;
+    bytes avatar = 7; // SVG / PNG / JPEG thumbnail (≤ 64 KiB recommended)
+
+    bool is_default = 8;
+}

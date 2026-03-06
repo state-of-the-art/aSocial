@@ -16,16 +16,20 @@
 # Author: Rabit (@rabits)
 
 cmake_minimum_required(VERSION 3.16)
-project(ui-gui LANGUAGES CXX VERSION 0.1.0)
+cmake_policy(SET CMP0135 NEW)
 
-# To build just the plugin
-if(NOT DEFINED PLUGINS_SOURCE_DIR)
-    set(PLUGINS_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
-endif()
-include(${PLUGINS_SOURCE_DIR}/plugin.cmake)
+project(asocial_proto LANGUAGES C)
 
+include(${CMAKE_CURRENT_LIST_DIR}/../../common.cmake)
 
-# Additional library deps
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Protobuf ProtobufWellKnownTypes)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Quick)
+file(GLOB_RECURSE Execution_PROTO RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "proto/asocial/v1/*.proto")
+
+qt_add_protobuf(${PROJECT_NAME} PROTO_FILES ${Execution_PROTO}
+  COPY_COMMENTS
+  GENERATE_PACKAGE_SUBFOLDERS
+  OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/proto
+)
+target_link_libraries(${PROJECT_NAME} PUBLIC Qt::Protobuf Qt::ProtobufWellKnownTypes)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/proto)

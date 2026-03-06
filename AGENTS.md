@@ -27,21 +27,133 @@ Plugins consist of 3 parts:
 
 Plugins are:
 * Comm - allows communication between aSocial nodes. It's not just networking, but also using
-  the other mediums for message transferring.
+ the other mediums for message transferring.
 * VFS - Encrypted Virtual filesystem for storage and communication between aSocial nodes. Need to
-  be secure and follow plausable deniability.
+ be secure and follow plausable deniability.
 * UI - shows the UI for the user. Separated plugin to allow to run aSocial as a headless service.
 * Storage - enables user to keep files. Regular ones are just storing on disk, advanced ones could
-  utilize cloud, encrypt the files on disk or use other ways to keep the files available. In case
-  file can't be stored on the system itself - there should be a preview available: small thumbnail
-  for photos and a few thumbnail frames of the video.
-* DBKV - unencrypted key-value database for background services (like relay) day-to-day operations.
-* DBSQL - encrypted SQL database to store account information.
+ utilize cloud, encrypt the files on disk or use other ways to keep the files available. In case
+ file can't be stored on the system itself - there should be a preview available: small thumbnail
+ for photos and a few thumbnail frames of the video.
+* DBKV - key-value database with dual-mode support: filesystem mode for unencrypted background
+ services (like relay) and QIODevice mode for encrypted profile storage via VFS.
+ All CRUD operations use QProtobufMessage for serialisation/deserialisation.
+* DBSQL - SQL database plugin (still available for plugins that need relational queries).
 * TODO - I think we need more types of plugins.
 
 Plugins could contain their specific libs (which will be built by the build system) and if they are
 using some common dependencies - those need to be put in `./libs` directory in the repo root to be
 build.
+
+## Storage Pipeline
+
+Profile data is stored through the VFS → DBKV-rocksdb plugin chain:
+
+1. **VFS-cake** manages an encrypted container file (`data.vfs`). Each passphrase
+   derives a unique encryption key that reveals a separate set of virtual files
+   (plausible deniability).
+2. **DBKV-rocksdb** opens a virtual file (e.g. `dbkv-rocksdb.dat`) from the VFS
+   container.  All key-value pairs are serialised to / from protobuf wire format
+   and stored in a temporary RocksDB instance.  `flush()` serialises the snapshot
+   back through the encrypted VFS layer.
+3. **DBKV-json** remains available for unencrypted background/relay operations
+   and does **not** store profile data.  It stores protobuf wire format in
+   individual `.pb` files on the filesystem.
+
+### DBKV Interface
+
+The `DBKVPluginInterface` stores and retrieves `QProtobufMessage` objects:
+
+* `openDatabase(const QString& path)` – directory-based, for background/relay use.
+* `openDatabase(QIODevice* device)` – VFS-compatible, data packed as a single
+  stream for encrypted containers.
+* `storeObject(key, QProtobufMessage&)` / `retrieveObject(key, QProtobufMessage&)`
+  – protobuf-native CRUD.
+* `listObjects(prefix)` – prefix-based key scanning.
+* `flushDatabase()` / `closeDatabase()` manage persistence and cleanup.
+
+### Key Design
+
+Keys follow a hierarchical prefix scheme for efficient range scans:
+
+```
+p                                       -> Profile
+a/<persona_uid>                         -> Persona
+c/<persona_uid>/<contact_uid>           -> Contact
+g/<persona_uid>/<group_uid>             -> Group
+gm/<group_uid>/<contact_uid>            -> GroupMember
+m/<persona_uid>/<created_ms>/<msg_uid>  -> Message (time-ordered)
+e/<persona_uid>/<event_uid>             -> Event
+pp/<key>                                -> ProfileParam
+```
+
+## Data Schema
+
+Protobuf specification files live in `libs/asocial_proto/proto/asocial/v1/`:
+
+* `profile.proto`  – Profile and Persona types
+* `contact.proto`  – Contact (known peer)
+* `group.proto`    – Group and GroupMember
+* `message.proto`  – Message / thread
+* `event.proto`    – Timeline events
+* `params.proto`   – Per-profile key-value settings
+
+C++ types are generated at build time by `qt_add_protobuf` into
+`${CMAKE_BINARY_DIR}/proto/asocial/v1/*.qpb.h` via the shared
+`asocial_proto` library.  Both Core and plugins use these protobuf
+types directly through CoreInterface — no QVariantMap conversion.
+Factory methods (`create*`) return populated but **unsaved** objects;
+callers must call the corresponding `store*` method to persist.
+
+## CLI Interface (ui-cmd)
+
+The CLI provides the following command hierarchy:
+
+```
+main>
+  settings>  list | get <key> | set <key> <value>
+  init       <size_mb>
+  init_auto  (shows proposed size)
+  profile>   open <pw> | create <pw> <name> | current | update <field> <val>
+             close | delete | export | import <b64> <vfs_pw>
+  persona>   list | create <name> | select <id> | info <id> | update | delete
+  contact>   list | add <name> | info <id> | update <id> <f> <v> | delete | search
+  group>     list | create <name> | info <id> | update | delete | add_member | remove_member
+  message>   list | send <to> <body> | read <id> | delete <id>
+  event>     list | create <title> <date> | info <id> | update | delete
+  qrcode     <text>
+  color | nocolor
+```
+
+All CLI data access goes through CoreInterface CRUD methods (no direct
+database access from the UI layer).
+
+## Integration Tests
+
+CLI integration tests live in `tests/cli_integration_tests.cpp` and exercise
+the full aSocial AppImage through its CLI interface.
+
+The **Kotik** helper class (`tests/kotik/Kotik.h`) manages the complete
+lifecycle of a test instance:
+
+* Creates an isolated `QTemporaryDir` per test
+* Launches the AppImage with `-w <tmpdir>` so settings and data stay sandboxed
+* Streams stdout/stderr in real time and provides assertion helpers:
+  `waitForLog()`, `contains()`, `noErrorLogs()`
+* `write(command)` sends a CLI command (appends newline automatically)
+* `exitApp()` sends `exit` and waits for clean shutdown
+* Destructor kills the process if it is still running
+
+Typical test pattern:
+
+```cpp
+Kotik* k = new Kotik(this);
+QVERIFY(k->waitForLog("main>", 5000));
+k->write("help");
+QVERIFY(k->waitForLog("Commands available:", 500));
+QVERIFY(k->exitApp());
+QCOMPARE(k->exitCode(), 0);
+```
 
 ## Build & validation
 

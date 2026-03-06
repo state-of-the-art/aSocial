@@ -16,7 +16,7 @@
 # Author: Rabit (@rabits)
 
 cmake_minimum_required(VERSION 3.16)
-project(dbsql-sqlite LANGUAGES CXX VERSION 0.1.0)
+project(dbkv-rocksdb LANGUAGES CXX VERSION 0.1.0)
 
 # To build just the plugin
 if(NOT DEFINED PLUGINS_SOURCE_DIR)
@@ -24,19 +24,18 @@ if(NOT DEFINED PLUGINS_SOURCE_DIR)
 endif()
 include(${PLUGINS_SOURCE_DIR}/plugin.cmake)
 
-
 # Additional library deps
-find_package(Qt6 REQUIRED COMPONENTS Sql)
+add_dependencies(${PROJECT_NAME} lib_rocksdb)
+add_dependencies(${PROJECT_NAME}_impl lib_rocksdb)
 
-add_dependencies(${PROJECT_NAME}_impl lib_sodium)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Sql -lsodium)
-target_link_libraries(${PROJECT_NAME}_impl PRIVATE Qt::Sql)
+target_link_libraries(${PROJECT_NAME} PRIVATE -lrocksdb -lpthread -ldl Qt::Protobuf)
+target_link_libraries(${PROJECT_NAME}_impl PRIVATE -lrocksdb -lpthread -ldl Qt::Protobuf)
 
 target_link_directories(${PROJECT_NAME} PRIVATE ${LIBS_RESULT_DIR}/lib)
+target_link_directories(${PROJECT_NAME}_impl PRIVATE ${LIBS_RESULT_DIR}/lib)
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${LIBS_RESULT_DIR}/include)
 target_include_directories(${PROJECT_NAME}_impl PRIVATE ${LIBS_RESULT_DIR}/include)
-
 
 # Last thing is to build tests if needed
 include(${PLUGINS_SOURCE_DIR}/../tests.cmake)

@@ -19,16 +19,15 @@
 
 #include <QByteArray>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
-#include <QJsonDocument>
 #include <QLoggingCategory>
-#include <QStandardPaths>
+#include <QRandomGenerator>
+#include <QtProtobuf/QProtobufSerializer>
 
 Q_LOGGING_CATEGORY(Djp, "DBKVJsonPlugin")
 
-DBKVJsonPlugin::DBKVJsonPlugin()
-    : m_dataDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/" + name())
-{}
+DBKVJsonPlugin::DBKVJsonPlugin() {}
 
 DBKVJsonPlugin::~DBKVJsonPlugin() {}
 
@@ -44,82 +43,146 @@ QStringList DBKVJsonPlugin::requirements() const
 
 bool DBKVJsonPlugin::init()
 {
-    qCDebug(Djp) << "Initializing dbkv-json plugin";
+    qCDebug(Djp) << "Initializing plugin";
 
-    // Create data directory if it doesn't exist
-    if( !m_dataDir.exists() ) {
-        if( !m_dataDir.mkpath(".") ) {
-            qCWarning(Djp) << "Failed to create data directory:" << m_dataDir.absolutePath();
-            setInitialized(false);
-            return false;
-        }
+    const QString defaultPath = m_core->getSetting("workdir.appdata").toString() + "/" + name();
+    m_dataDir = QDir(defaultPath);
+
+    if( !openDatabase(defaultPath) ) {
+        setInitialized(false);
+        return false;
     }
 
-    qCDebug(Djp) << "Data directory:" << m_dataDir.absolutePath();
     setInitialized(true);
     return true;
 }
 
 bool DBKVJsonPlugin::deinit()
 {
-    qCDebug(Djp) << "Deinitializing dbkv-json plugin";
+    qCDebug(Djp) << "Deinitializing plugin";
+    closeDatabase();
     setInitialized(false);
     return true;
 }
 
 bool DBKVJsonPlugin::configure()
 {
-    qCDebug(Djp) << "Configuring dbkv-json plugin";
+    qCDebug(Djp) << "Configuring plugin";
     return true;
 }
 
-QStringList DBKVJsonPlugin::listObjects(const QString& prefix)
-{
-    QStringList profiles;
-    QStringList filters = {"profile_*.json"};
-    QFileInfoList files = m_dataDir.entryInfoList(filters, QDir::Files);
+// ---------------------------------------------------------------------------
+// Database lifecycle
+// ---------------------------------------------------------------------------
 
-    for( const QFileInfo& file : files ) {
-        QString fileName = file.baseName(); // Remove .json extension
-        if( fileName.startsWith("profile_") ) {
-            QString profileId = fileName.mid(8); // Remove "profile_" prefix
-            profiles.append(profileId);
+bool DBKVJsonPlugin::openDatabase(const QString& path)
+{
+    if( m_dbOpen )
+        closeDatabase();
+
+    m_dataDir = QDir(path);
+
+    if( !m_dataDir.exists() ) {
+        if( !m_dataDir.mkpath(".") ) {
+            qCWarning(Djp) << "Failed to create data directory:" << m_dataDir.absolutePath();
+            return false;
         }
     }
 
-    return profiles;
+    m_dbOpen = true;
+    qCDebug(Djp) << "Database opened at:" << m_dataDir.absolutePath();
+    return true;
 }
 
-bool DBKVJsonPlugin::storeObject(const QString& key, QVariantMap& object)
+bool DBKVJsonPlugin::openDatabase(QIODevice* /*device*/)
 {
-    if( !isInitialized() ) {
-        qCWarning(Djp) << "Plugin not initialized";
+    qCWarning(Djp) << "QIODevice mode is not supported by the JSON plugin."
+                   << "Use dbkv-rocksdb for VFS-backed storage.";
+    return false;
+}
+
+bool DBKVJsonPlugin::isDatabaseOpen() const
+{
+    return m_dbOpen;
+}
+
+void DBKVJsonPlugin::flushDatabase()
+{
+    // No-op: each storeObject() writes directly to disk
+}
+
+void DBKVJsonPlugin::closeDatabase()
+{
+    m_dbOpen = false;
+    qCDebug(Djp) << "Database closed";
+}
+
+// ---------------------------------------------------------------------------
+// CRUD (protobuf-native)
+// ---------------------------------------------------------------------------
+
+QStringList DBKVJsonPlugin::listObjects(const QString& prefix)
+{
+    if( !m_dbOpen ) {
+        qCWarning(Djp) << "Database not open";
+        return {};
+    }
+
+    QStringList result;
+    const QString suffix = QStringLiteral(".pb");
+
+    QDirIterator it(m_dataDir.absolutePath(), {"*" + suffix}, QDir::Files, QDirIterator::Subdirectories);
+    while( it.hasNext() ) {
+        it.next();
+        // Reconstruct the key from the relative path minus the .pb extension
+        QString rel = m_dataDir.relativeFilePath(it.filePath());
+        rel.chop(suffix.size());
+        if( prefix.isEmpty() || rel.startsWith(prefix) )
+            result.append(rel);
+    }
+
+    result.sort();
+    return result;
+}
+
+bool DBKVJsonPlugin::storeObject(const QString& key, const QProtobufMessage& message)
+{
+    if( !m_dbOpen ) {
+        qCWarning(Djp) << "Database not open";
         return false;
     }
 
-    QString serializedData = QJsonDocument::fromVariant(object).toJson();
-    if( serializedData.isEmpty() ) {
-        qCWarning(Djp) << "Failed to serialize object for key:" << key;
+    QProtobufSerializer serializer;
+    QByteArray data = message.serialize(&serializer);
+    if( data.isEmpty() && serializer.lastError() != QAbstractProtobufSerializer::Error::None ) {
+        qCWarning(Djp) << "Protobuf serialisation failed for key:" << key;
         return false;
     }
 
     QString filePath = getObjectFilePath(key);
+
+    // Ensure parent directories exist
+    QFileInfo fi(filePath);
+    if( !fi.dir().exists() )
+        fi.dir().mkpath(".");
+
     QFile file(filePath);
     if( !file.open(QIODevice::WriteOnly) ) {
         qCWarning(Djp) << "Failed to open file for writing:" << filePath;
+        secureWipe(data);
         return false;
     }
 
-    file.write(serializedData.toUtf8());
+    file.write(data);
     file.close();
-
+    secureWipe(data);
     return true;
 }
 
-bool DBKVJsonPlugin::retrieveObject(const QString& key, QVariantMap& object)
+bool DBKVJsonPlugin::retrieveObject(const QString& key, QProtobufMessage& message)
 {
-    if( !isInitialized() ) {
-        qCWarning(Djp) << "Plugin not initialized";
+    if( !m_dbOpen ) {
+        qCWarning(Djp) << "Database not open";
         return false;
     }
 
@@ -130,20 +193,23 @@ bool DBKVJsonPlugin::retrieveObject(const QString& key, QVariantMap& object)
         return false;
     }
 
-    QByteArray jsonData = file.readAll();
+    QByteArray data = file.readAll();
     file.close();
 
-    QJsonDocument doc = QJsonDocument::fromJson(jsonData);
-    object = doc.object().toVariantMap();
+    QProtobufSerializer serializer;
+    bool ok = message.deserialize(&serializer, data);
+    secureWipe(data);
 
-    return true;
+    if( !ok )
+        qCWarning(Djp) << "Protobuf deserialisation failed for key:" << key;
+
+    return ok;
 }
 
 bool DBKVJsonPlugin::objectExists(const QString& key)
 {
-    if( !isInitialized() ) {
+    if( !m_dbOpen )
         return false;
-    }
 
     QString filePath = getObjectFilePath(key);
     return QFile::exists(filePath);
@@ -151,20 +217,47 @@ bool DBKVJsonPlugin::objectExists(const QString& key)
 
 bool DBKVJsonPlugin::deleteObject(const QString& key)
 {
-    if( !isInitialized() ) {
-        qCWarning(Djp) << "Plugin not initialized";
+    if( !m_dbOpen ) {
+        qCWarning(Djp) << "Database not open";
         return false;
     }
 
     QString filePath = getObjectFilePath(key);
-    if( QFile::exists(filePath) ) {
+    if( QFile::exists(filePath) )
         return QFile::remove(filePath);
-    }
 
-    return true; // Object doesn't exist, consider it deleted
+    return true;
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 QString DBKVJsonPlugin::getObjectFilePath(const QString& key) const
 {
-    return m_dataDir.absoluteFilePath(key + ".json");
+    // Key hierarchy maps directly to filesystem directories.
+    // e.g. key "a/some-uuid" -> "<datadir>/a/some-uuid.pb"
+    return m_dataDir.absoluteFilePath(key + ".pb");
+}
+
+// ---------------------------------------------------------------------------
+// Security
+// ---------------------------------------------------------------------------
+
+void DBKVJsonPlugin::secureWipe(QByteArray& buf)
+{
+    if( buf.isEmpty() )
+        return;
+
+    auto* rng = QRandomGenerator::global();
+    auto* data = reinterpret_cast<quint32*>(buf.data());
+    const qsizetype words = buf.size() / static_cast<qsizetype>(sizeof(quint32));
+    for( qsizetype i = 0; i < words; ++i )
+        data[i] = rng->generate();
+
+    const qsizetype tail = buf.size() % static_cast<qsizetype>(sizeof(quint32));
+    for( qsizetype i = buf.size() - tail; i < buf.size(); ++i )
+        buf[i] = static_cast<char>(rng->generate() & 0xFF);
+
+    buf.clear();
 }

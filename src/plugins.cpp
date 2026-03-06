@@ -25,7 +25,6 @@
 Q_LOGGING_CATEGORY(plugins, "Plugins")
 
 #include <QDir>
-#include <QStandardPaths>
 
 #include <QPluginLoader>
 
@@ -181,7 +180,7 @@ void Plugins::refreshPluginsList()
     plugins_dirs.append(QCoreApplication::applicationDirPath().append("/../share/asocial/plugins"));
     // TODO: Could be dangerous to load plugins from everywhere - maybe by default load
     // only the trusted ones or implement plugin vendors and signatures?
-    plugins_dirs.append(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    plugins_dirs.append(Settings::I()->setting("workdir.applocaldata").toString());
 
     QStringList filters = {"libasocial-plugin-*"};
 

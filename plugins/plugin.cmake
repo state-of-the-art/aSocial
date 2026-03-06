@@ -27,10 +27,11 @@ list(REMOVE_ITEM Implementation_CPP src/plugin.cpp)
 list(REMOVE_ITEM Implementation_H src/plugin.h)
 
 add_library(${PROJECT_NAME}_impl STATIC ${Implementation_CPP} ${Implementation_H})
-target_include_directories(${PROJECT_NAME}_impl PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../include")
+target_include_directories(${PROJECT_NAME}_impl PUBLIC "${CMAKE_CURRENT_LIST_DIR}/../include" asocial_proto)
 target_compile_definitions(${PROJECT_NAME}_impl PRIVATE PLUGIN_NAME="${PROJECT_NAME}")
 target_compile_definitions(${PROJECT_NAME}_impl PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
-target_link_libraries(${PROJECT_NAME}_impl PRIVATE Qt::Core)
+find_package(Qt6 REQUIRED COMPONENTS Protobuf ProtobufWellKnownTypes)
+target_link_libraries(${PROJECT_NAME}_impl PUBLIC Qt::Core Qt::Protobuf Qt::ProtobufWellKnownTypes asocial_proto)
 
 # Build plugin
 qt_add_plugin(${PROJECT_NAME} SHARED CLASS_NAME Plugin)
@@ -40,6 +41,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "../libasocial-plugin-")
 target_compile_definitions(${PROJECT_NAME} PRIVATE PLUGIN_NAME="${PROJECT_NAME}")
 target_compile_definitions(${PROJECT_NAME} PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
 
-target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../include")
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_impl)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core ${PROJECT_NAME}_impl)
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_impl)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_impl)

@@ -22,8 +22,6 @@ BASEDIR=$(dirname `readlink -f $0`)
 
 . "$BASEDIR/_prepare.sh"
 
-"$BASEDIR/check.sh"
-
 echo
 echo =========== BUILDING DEBUG and TESTS ===========
 

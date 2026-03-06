@@ -43,6 +43,8 @@ public:
 
     // DBSQLPluginInterface
     QSqlDatabase openDatabaseFile(QIODevice* device) override;
+    QSqlDatabase database() const override;
+    bool isDatabaseOpen() const override;
     void flushDatabase() override;
     void closeDatabase() override;
 

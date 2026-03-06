@@ -20,6 +20,9 @@
 
 #include <QSettings>
 
+/**
+ * @brief aSocial core-only settings with full access to read/write
+ */
 class Settings : public QObject
 {
     Q_OBJECT
@@ -38,6 +41,9 @@ public:
     Q_INVOKABLE QVariant setting(QString key, QVariant value = QVariant());
     Q_INVOKABLE bool isNull(QString key);
     void setDefault(QString key, QVariant value);
+
+    /** @brief Return all known setting keys. */
+    QStringList listAllKeys() const;
 
 signals:
     void settingChanged(QString key);

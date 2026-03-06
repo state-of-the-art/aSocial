@@ -15,33 +15,30 @@
 
 // Author: Rabit (@rabits)
 
-#ifndef DBKVJSONPLUGIN_H
-#define DBKVJSONPLUGIN_H
+#ifndef DBKVROCKSDBPLUGIN_H
+#define DBKVROCKSDBPLUGIN_H
 
-#include <QDir>
+#include "RocksDBStore.h"
+#include "plugin/DBKVPluginInterface.h"
 #include <QObject>
 
-#include "plugin/DBKVPluginInterface.h"
-
 /**
- * @brief Simple file-based key-value plugin storing protobuf wire data.
+ * @brief Qt plugin wrapper around the RocksDBStore engine.
  *
- * Each key is stored as a separate binary file inside a data directory.
- * The file contents are raw protobuf wire format bytes.
- *
- * This plugin is intended for unencrypted background / relay operations.
- * QIODevice mode is not supported -- openDatabase(QIODevice*) always
- * returns false.  Use dbkv-rocksdb for VFS-backed profile storage.
+ * Implements the DBKVPluginInterface and delegates all storage operations
+ * to a RocksDBStore instance.  QProtobufMessage objects are serialised
+ * to / from protobuf wire format via QProtobufSerializer.  Sensitive
+ * temporary buffers are overwritten with random bytes before deallocation.
  */
-class DBKVJsonPlugin : public QObject, public DBKVPluginInterface
+class DBKVRocksdbPlugin : public QObject, public DBKVPluginInterface
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.DBKVJsonPlugin")
+    Q_PLUGIN_METADATA(IID "io.stateoftheart.asocial.plugin.DBKVRocksdbPlugin")
     Q_INTERFACES(DBKVPluginInterface PluginInterface)
 
 public:
-    DBKVJsonPlugin();
-    ~DBKVJsonPlugin() override;
+    DBKVRocksdbPlugin();
+    ~DBKVRocksdbPlugin() override;
 
     // PluginInterface
     Q_INVOKABLE QString name() const override;
@@ -73,16 +70,7 @@ private:
     /** @brief Overwrite @p buf with random bytes, then clear it. */
     static void secureWipe(QByteArray& buf);
 
-    QDir m_dataDir;
-    bool m_dbOpen = false;
-
-    /**
-     * @brief Map a hierarchical key to a filesystem path.
-     *
-     * Forward slashes in the key become directory separators so that
-     * prefix-based listing maps naturally to directory traversal.
-     */
-    QString getObjectFilePath(const QString& key) const;
+    RocksDBStore m_store;
 };
 
-#endif // DBKVJSONPLUGIN_H
+#endif // DBKVROCKSDBPLUGIN_H

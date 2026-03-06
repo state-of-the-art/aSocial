@@ -1,0 +1,25 @@
+// Copyright (C) 2026  aSocial Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Schema definition for contacts (known peers).
+
+syntax = "proto3";
+
+package asocial.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A remote peer known to a specific persona.
+message Contact
+{
+    string uid = 1; // UUID
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+
+    string persona_uid = 4; // FK -> Persona.uid (owning persona)
+
+    string display_name = 5;
+    bytes public_key = 6;  // public key (32 bytes)
+    int32 trust_level = 7; // 0 = unknown ... 100 = fully trusted
+    optional string notes = 8;
+}

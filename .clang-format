@@ -1,5 +1,4 @@
 ---
-Language: Cpp
 Standard: c++17
 TabWidth: 4
 UseTab: Never
@@ -104,3 +103,7 @@ SpacesInParensOptions:
 SpacesInSquareBrackets: false
 ReferenceAlignment: Left
 PointerAlignment: Left
+---
+Language: Cpp
+---
+Language: Proto

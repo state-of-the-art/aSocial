@@ -44,7 +44,25 @@ TODO
 ## Application
 
 The application itself is native divided into 2 parts - background backend and UI frontend. Backend working with
-a simple key-value database, frontend working with encrypted sql database to process profiles data.
+a simple key-value database for relay/background tasks, frontend working with an encrypted key-value store to
+process profile data through the **VFS → DBKV-rocksdb plugin chain** (encrypted container → protobuf KV store).
+
+### Storage Architecture
+
+Profile data is stored inside an encrypted VFS container (`data.vfs`):
+
+1. `vfs-cake` creates a Shufflecake-inspired container filled with random bytes.
+2. Each passphrase derives a unique key that reveals a separate set of virtual files (plausible deniability).
+3. `dbkv-rocksdb` opens a virtual `.dat` file as a temporary RocksDB instance.  All entity data is
+   serialised with protobuf wire format and stored under a hierarchical key scheme for efficient
+   prefix scans (e.g. `c/<persona>/<contact>` for contacts).
+4. Data schema is defined in `proto/asocial/v1/*.proto`; C++ types are generated at build time by
+   `qt_add_protobuf` into the shared `asocial_proto` library.
+5. `dbkv-json` is reserved for unencrypted background/relay operations only.
+6. All DBKV CRUD operations use `QProtobufMessage` for serialisation/deserialisation.
+7. `CoreInterface` and all plugins exchange data as protobuf-generated types (`asocial::v1::*`)
+   directly — no QVariantMap conversion.  Factory methods (`create*`) return unsaved objects;
+   `store*` persists them.
 
 ### Core features
 
@@ -113,6 +131,17 @@ but it's your choice, no pressure.
       -v, --version  Displays version information.
       --no-gui       Load CMD instead of GUI in case GUI is available
     ```
+
+### Test
+
+Integration tests use the **Kotik** helper (`tests/kotik/`) which wraps the
+full AppImage lifecycle: it creates an isolated temp directory, launches the
+app with `-w`, monitors stdout/stderr, and provides assertion helpers for
+Qt Test.
+
+```
+$ ./test.sh
+```
 
 ## Privacy policy
 

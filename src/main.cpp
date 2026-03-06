@@ -15,10 +15,11 @@
 
 // Author: Rabit (@rabits)
 
-//#include <QtGui/QGuiApplication>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDir>
 #include <QLocale>
+#include <QStandardPaths>
 #include <QTranslator>
 
 #include <QLoggingCategory>
@@ -44,9 +45,16 @@ int main(int argc, char* argv[])
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addOptions({
-        {"no-ui", QCoreApplication::translate("main", "Load CMD instead of GUI in case GUI is available")},
-    });
+
+    QCommandLineOption
+        noUiOption("no-ui", QCoreApplication::translate("main", "Load CMD instead of GUI in case GUI is available"));
+    parser.addOption(noUiOption);
+    QCommandLineOption workingDirectoryOption(
+        QStringList() << "w",
+        "workdir",
+        QCoreApplication::translate("main", "Set working directory instead of default one"));
+    parser.addOption(workingDirectoryOption);
+
     parser.process(*app.data());
 
     // Loading translations
@@ -60,26 +68,42 @@ int main(int argc, char* argv[])
         }
     }
 
+    qCInfo(Cm, "Init settings...");
+    if( parser.isSet(workingDirectoryOption) ) {
+        const QString wd = parser.value(workingDirectoryOption);
+        QString conf_path = QDir(wd).absolutePath() + QDir::separator() + "settings.ini";
+        Settings::setConfigFile(conf_path);
+        Settings::I()->setDefault("workdir.appdir", wd);
+        Settings::I()->setDefault("workdir.localdir", wd);
+    } else {
+        Settings::I();
+        Settings::I()->setDefault("workdir.appdata", QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+        Settings::I()
+            ->setDefault("workdir.applocaldata", QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    }
+
     qCInfo(Cm, "Init plugins...");
     Plugins::I();
 
-    qCInfo(Cm, "Init settings...");
-    Settings::I();
+    // Seed default settings for plugin selection
+    Settings::I()->setDefault("vfs.plugin", "vfs-cake");
+    Settings::I()->setDefault("dbkv.plugin", "dbkv-json");
+    Settings::I()->setDefault("dbkv.profile.plugin", "dbkv-rocksdb");
+    Settings::I()->setDefault("vfs.container.path", "data.vfs");
 
     qCInfo(Cm, "Init core...");
     Core::I()->setApp(app.data());
-    Core::I()->setDBKVPlugin("dbkv-json");
-    Core::I()->setDBSQLPlugin("dbsql-sqlite");
+    Core::I()->setDBKVPlugin(Settings::I()->setting("dbkv.plugin").toString());
+    Core::I()->setDBKVProfilePlugin(Settings::I()->setting("dbkv.profile.plugin").toString());
+    Core::I()->setVFSPlugin(Settings::I()->setting("vfs.plugin").toString());
 
-    if( parser.isSet("no-ui") ) {
-        // Init console application
+    if( parser.isSet(noUiOption) ) {
         qCDebug(Cm, "aSocial - console mode");
     } else {
-        // Init GUI application
         qCDebug(Cm, "aSocial - UI mode");
     }
 
-    // Test cli ui
+    // Activate UI plugin
     Settings::I()->setting("plugins.ui.cmd.active", true);
     Plugins::I()->settingActivePlugin("plugins.ui.cmd.active", "ui-cmd");
     Plugins::I()->activateInterface("ui-cmd", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));

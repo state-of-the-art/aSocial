@@ -57,7 +57,7 @@ export LINUXDEPLOY_EXCLUDED_LIBRARIES="libqsqlibase.so;libqsqlmimer.so;libqsqlmy
 '"$linuxdeploy_nostrip"'
 
 linuxdeploy --appdir ./deploy --plugin qt \
-  -e "$(find ./build -maxdepth 1 -type f -executable)" \
+  -e ./build/asocial \
   $(find ./build/plugins -maxdepth 1 -type f -name "libasocial-plugin-*.so" -printf "-l %p ") \
   -d ./project/asocial.desktop \
   -i ./project/asocial.icon.svg --icon-filename asocial

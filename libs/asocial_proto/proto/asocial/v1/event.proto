@@ -1,0 +1,26 @@
+// Copyright (C) 2026  aSocial Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Schema definition for timeline events.
+
+syntax = "proto3";
+
+package asocial.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A life-event on a persona's timeline.
+message Event
+{
+    string uid = 1; // UUID
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+
+    string persona_uid = 4; // FK -> Persona.uid
+
+    string title = 5;
+    optional string description = 6;
+    optional string location = 7;
+    optional google.protobuf.Timestamp started = 8; // When the event happened
+    optional google.protobuf.Timestamp ended = 9;   // When the event completed
+}

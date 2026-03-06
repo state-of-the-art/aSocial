@@ -1,0 +1,32 @@
+// Copyright (C) 2026  aSocial Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Schema definition for groups and group membership.
+
+syntax = "proto3";
+
+package asocial.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A named collection of contacts visible to a persona.
+message Group
+{
+    string uid = 1; // UUID
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+
+    string persona_uid = 4; // FK -> Persona.uid
+
+    string name = 5;
+    string description = 6;
+}
+
+// N:M join between Group and Contact.
+message GroupMember
+{
+    string group_uid = 1;   // FK -> Group.uid
+    string contact_uid = 2; // FK -> Contact.uid
+    string role = 3;        // e.g. "admin", "member"
+    google.protobuf.Timestamp joined_at = 4;
+}

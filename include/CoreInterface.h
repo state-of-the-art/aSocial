@@ -20,42 +20,438 @@
 
 #include <QObject>
 #include <QStringList>
-#include <QVariantMap>
+#include <QVariant>
+
+#include "asocial/v1/contact.qpb.h"
+#include "asocial/v1/event.qpb.h"
+#include "asocial/v1/group.qpb.h"
+#include "asocial/v1/message.qpb.h"
+#include "asocial/v1/profile.qpb.h"
 
 class DBKVPluginInterface;
-class DBSQLPluginInterface;
+class VFSPluginInterface;
 
 /**
- * Abstract interface for Core functionality that plugins can use
- * This ensures binary compatibility when Core is extended
+ * @brief Abstract interface for Core functionality that plugins can use.
+ *
+ * Provides access to database plugins, VFS container management,
+ * profile lifecycle (create / open / close / delete / export / import),
+ * and CRUD operations for all data entities.
+ *
+ * Storage pipeline:
+ *   VFS-cake  ->  DBKV-rocksdb  (encrypted container -> KV store with protobuf).
+ *
+ * All entity data is exchanged as protobuf-generated types from
+ * libs/asocial_proto.  Factory methods (create*) return a populated
+ * but **unsaved** object; callers must explicitly call the
+ * corresponding store* method to persist changes to the database.
  */
 class CoreInterface
 {
 public:
     virtual ~CoreInterface() {}
 
-    // Key-Value database management
+    // ---- Plugin accessors ------------------------------------------------
+
+    /** @brief Unencrypted key-value store (relay / background operations). */
     virtual DBKVPluginInterface* getDBKV() const = 0;
-    // SQL database management
-    virtual DBSQLPluginInterface* getDBSQL() const = 0;
+    /** @brief Encrypted key-value store (profile data via VFS). */
+    virtual DBKVPluginInterface* getDBKVProfile() const = 0;
+    /** @brief Encrypted VFS container provider. */
+    virtual VFSPluginInterface* getVFS() const = 0;
 
-    // Profile management
+    // ---- VFS container lifecycle -----------------------------------------
+
+    /**
+     * @brief Create a new encrypted container on disk.
+     * @param path          Filesystem path for the *.vfs file.
+     * @param maxSizeBytes  Maximum container size (0 = auto).
+     * @return true on success.
+     */
+    virtual bool createContainer(const QString& path, quint64 maxSizeBytes = 0) = 0;
+
+    /** @brief true when a container file has been set and exists on disk. */
+    virtual bool isContainerInitialized() const = 0;
+
+    /** @brief Filesystem path of the current container. */
+    virtual QString containerPath() const = 0;
+
+    // ---- Profile lifecycle -----------------------------------------------
+
+    /**
+     * @brief Open an existing profile inside the current container.
+     *
+     * Derives the encryption key from @p password, trial-decrypts VFS
+     * slots, locates the DBKV database file, and makes it current.
+     *
+     * @param password  Passphrase for this encryption layer.
+     * @return true if a valid profile database was found and opened.
+     */
+    virtual bool openProfile(const QString& password) = 0;
+
+    /**
+     * @brief Create a brand-new profile inside the current container.
+     *
+     * Derives a fresh encryption layer from @p password, creates the
+     * DBKV virtual file, populates initial profile and default persona,
+     * and makes the profile current.  Both the Profile and default
+     * Persona are auto-stored as part of this lifecycle operation.
+     *
+     * @param password     Passphrase for the new encryption layer.
+     * @param displayName  Human-readable profile name.
+     * @return true on success.
+     */
+    virtual bool createProfile(const QString& password, const QString& displayName) = 0;
+
+    /**
+     * @brief Flush and close the currently open profile.
+     *
+     * Serialises the KV database back to the VFS virtual file
+     * and closes the VFS container.
+     */
+    virtual void closeProfile() = 0;
+
+    /** @brief true when a profile is open and the KV database is active. */
+    virtual bool isProfileOpen() const = 0;
+
+    /**
+     * @brief Securely delete the currently open profile.
+     *
+     * All VFS slots belonging to this encryption layer are overwritten
+     * with random data.  Progress (0-100 %) is reported through the
+     * @p progress callback.
+     *
+     * @param progress  Optional callback receiving percentage (0-100).
+     * @return true on success.
+     */
+    virtual bool deleteCurrentProfile(std::function<void(int)> progress = nullptr) = 0;
+
+    // ---- Profile data ----------------------------------------------------
+
+    /**
+     * @brief Retrieve the current profile as a protobuf object.
+     * @return Populated Profile, or default-constructed if none is open.
+     */
+    virtual asocial::v1::Profile getProfile() const = 0;
+
+    /**
+     * @brief Persist a modified Profile to the database.
+     *
+     * Automatically sets updatedAt to the current UTC time.
+     *
+     * @param profile  Profile to store (uid must match the current profile).
+     * @return true on success.
+     */
+    virtual bool storeProfile(const asocial::v1::Profile& profile) = 0;
+
+    /** @brief Return the current profile ID (empty if none). */
     virtual QString getCurrentProfileId() const = 0;
-    virtual void setCurrentProfileId(const QString& profileId) = 0;
 
-    // Profile operations
-    virtual QString createProfile(const QString& name) = 0;
-    virtual QString importProfile(const QString& serializedData) = 0;
-    virtual QString exportProfile(const QString& profileId) = 0;
-    virtual bool deleteProfile(const QString& profileId) = 0;
-    virtual QStringList listProfiles() = 0;
-    virtual QVariantMap getProfileInfo(const QString& profileId) = 0;
+    /** @brief Name of the active persona (for prompt display, etc.). */
+    virtual QString currentPersonaName() const = 0;
 
-    // Core app features
+    // ---- Profile export / import -----------------------------------------
+
+    /**
+     * @brief Serialise the entire profile database to base64-encoded JSON.
+     * @param encryptionPassword  If non-empty, the JSON is encrypted
+     *                            with XChaCha20-Poly1305 before base64.
+     * @return Base64-encoded JSON (optionally encrypted), or empty on error.
+     */
+    virtual QByteArray exportProfile(const QString& encryptionPassword = QString()) = 0;
+
+    /**
+     * @brief Import a previously exported profile into the container.
+     * @param data                Base64-encoded (optionally encrypted) JSON.
+     * @param decryptionPassword  Password to decrypt the JSON (if encrypted).
+     * @param vfsPassword         Password for the new VFS encryption layer.
+     * @return true on success.
+     */
+    virtual bool importProfile(const QByteArray& data, const QString& decryptionPassword, const QString& vfsPassword)
+        = 0;
+
+    // ---- System-wide settings (QSettings-backed) -------------------------
+
+    /** @brief Get a system setting value. */
+    virtual QVariant getSetting(const QString& key) const = 0;
+    /** @brief Set a system setting value. */
+    virtual bool setSetting(const QString& key, const QVariant& value) = 0;
+    /** @brief List all known system setting keys. */
+    virtual QStringList listSettings() const = 0;
+
+    // ---- Active persona tracking -----------------------------------------
+
+    /**
+     * @brief Switch the "active persona" within the current profile.
+     * @param personaId  UUID of the persona to impersonate.
+     * @return true if the persona exists and was selected.
+     */
+    virtual bool setActivePersona(const QString& personaId) = 0;
+
+    /** @brief ID of the currently active persona (empty if none). */
+    virtual QString activePersonaId() const = 0;
+
+    // ---- Persona CRUD ----------------------------------------------------
+
+    /**
+     * @brief List all personas in the current profile.
+     * @return Sorted list: default persona first, then alphabetical.
+     */
+    virtual QList<asocial::v1::Persona> listPersonas() const = 0;
+
+    /**
+     * @brief Create a new Persona object (not yet persisted).
+     *
+     * Populates uid, profileUid, createdAt, and updatedAt.
+     * Call storePersona() to persist.
+     *
+     * @param displayName  Human-readable name.
+     * @return Populated Persona, or default-constructed on failure.
+     */
+    virtual asocial::v1::Persona createPersona(const QString& displayName) = 0;
+
+    /**
+     * @brief Retrieve a persona by ID.
+     * @param personaId  UUID of the persona.
+     * @return Populated Persona, or default-constructed if not found.
+     */
+    virtual asocial::v1::Persona getPersona(const QString& personaId) const = 0;
+
+    /**
+     * @brief Persist a Persona to the database (insert or update).
+     *
+     * Automatically sets updatedAt to the current UTC time.
+     *
+     * @param persona  Persona to store (uid must be set).
+     * @return true on success.
+     */
+    virtual bool storePersona(const asocial::v1::Persona& persona) = 0;
+
+    /**
+     * @brief Delete a persona and all dependent entities.
+     *
+     * Cascading deletes: contacts, groups (+ memberships), messages,
+     * and events belonging to this persona are removed.
+     *
+     * @param personaId  UUID of the persona to delete.
+     * @return true on success.
+     */
+    virtual bool deletePersona(const QString& personaId) = 0;
+
+    // ---- Contact CRUD (scoped to active persona) -------------------------
+
+    /**
+     * @brief List all contacts of the active persona.
+     * @return Sorted by displayName alphabetically.
+     */
+    virtual QList<asocial::v1::Contact> listContacts() const = 0;
+
+    /**
+     * @brief Create a new Contact object (not yet persisted).
+     *
+     * Populates uid, personaUid, createdAt, and updatedAt.
+     * Call storeContact() to persist.
+     *
+     * @param displayName  Human-readable name.
+     * @return Populated Contact, or default-constructed on failure.
+     */
+    virtual asocial::v1::Contact createContact(const QString& displayName) = 0;
+
+    /**
+     * @brief Retrieve a contact by ID (scoped to active persona).
+     * @param contactId  UUID of the contact.
+     * @return Populated Contact, or default-constructed if not found.
+     */
+    virtual asocial::v1::Contact getContact(const QString& contactId) const = 0;
+
+    /**
+     * @brief Persist a Contact to the database (insert or update).
+     *
+     * Automatically sets updatedAt to the current UTC time.
+     * The storage key is derived from the contact's personaUid and uid.
+     *
+     * @param contact  Contact to store (uid and personaUid must be set).
+     * @return true on success.
+     */
+    virtual bool storeContact(const asocial::v1::Contact& contact) = 0;
+
+    /**
+     * @brief Delete a contact.
+     * @param contactId  UUID of the contact to delete.
+     * @return true on success.
+     */
+    virtual bool deleteContact(const QString& contactId) = 0;
+
+    /**
+     * @brief Search contacts by displayName or notes substring.
+     * @param query  Case-insensitive search string.
+     * @return Matching contacts.
+     */
+    virtual QList<asocial::v1::Contact> searchContacts(const QString& query) const = 0;
+
+    // ---- Group CRUD (scoped to active persona) ---------------------------
+
+    /**
+     * @brief List all groups of the active persona.
+     * @return Sorted by name alphabetically.
+     */
+    virtual QList<asocial::v1::Group> listGroups() const = 0;
+
+    /**
+     * @brief Create a new Group object (not yet persisted).
+     *
+     * Populates uid, personaUid, createdAt, and updatedAt.
+     * Call storeGroup() to persist.
+     *
+     * @param name  Group name.
+     * @return Populated Group, or default-constructed on failure.
+     */
+    virtual asocial::v1::Group createGroup(const QString& name) = 0;
+
+    /**
+     * @brief Retrieve a group by ID (scoped to active persona).
+     * @param groupId  UUID of the group.
+     * @return Populated Group, or default-constructed if not found.
+     */
+    virtual asocial::v1::Group getGroup(const QString& groupId) const = 0;
+
+    /**
+     * @brief Persist a Group to the database (insert or update).
+     *
+     * Automatically sets updatedAt to the current UTC time.
+     *
+     * @param group  Group to store (uid and personaUid must be set).
+     * @return true on success.
+     */
+    virtual bool storeGroup(const asocial::v1::Group& group) = 0;
+
+    /**
+     * @brief Delete a group and its membership records.
+     * @param groupId  UUID of the group to delete.
+     * @return true on success.
+     */
+    virtual bool deleteGroup(const QString& groupId) = 0;
+
+    /**
+     * @brief Add a contact to a group (auto-persisted relationship).
+     * @param groupId    UUID of the target group.
+     * @param contactId  UUID of the contact to add.
+     * @return true on success.
+     */
+    virtual bool addGroupMember(const QString& groupId, const QString& contactId) = 0;
+
+    /**
+     * @brief Remove a contact from a group.
+     * @param groupId    UUID of the target group.
+     * @param contactId  UUID of the contact to remove.
+     * @return true on success.
+     */
+    virtual bool removeGroupMember(const QString& groupId, const QString& contactId) = 0;
+
+    /**
+     * @brief List members of a group.
+     * @param groupId  UUID of the group.
+     * @return List of GroupMember records.
+     */
+    virtual QList<asocial::v1::GroupMember> listGroupMembers(const QString& groupId) const = 0;
+
+    // ---- Message CRUD (scoped to active persona) -------------------------
+
+    /**
+     * @brief List recent messages for the active persona (newest first).
+     * @param limit  Maximum number of messages to return.
+     * @return Messages sorted newest-first.
+     */
+    virtual QList<asocial::v1::Message> listMessages(int limit = 50) const = 0;
+
+    /**
+     * @brief Create a new Message object (not yet persisted).
+     *
+     * Populates uid, personaUid, threadUid, and createdAt.
+     * Call storeMessage() to persist.
+     *
+     * @param recipientId    UUID of the recipient.
+     * @param body           Message text.
+     * @param recipientType  "contact" or "group".
+     * @return Populated Message, or default-constructed on failure.
+     */
+    virtual asocial::v1::Message createMessage(
+        const QString& recipientId, const QString& body, const QString& recipientType = QStringLiteral("contact"))
+        = 0;
+
+    /**
+     * @brief Retrieve a single message by ID.
+     * @param messageId  UUID of the message.
+     * @return Populated Message, or default-constructed if not found.
+     */
+    virtual asocial::v1::Message getMessage(const QString& messageId) const = 0;
+
+    /**
+     * @brief Persist a Message to the database.
+     *
+     * The storage key is derived from personaUid, createdAt, and uid.
+     *
+     * @param message  Message to store (uid, personaUid, createdAt must be set).
+     * @return true on success.
+     */
+    virtual bool storeMessage(const asocial::v1::Message& message) = 0;
+
+    /**
+     * @brief Delete a message.
+     * @param messageId  UUID of the message to delete.
+     * @return true on success.
+     */
+    virtual bool deleteMessage(const QString& messageId) = 0;
+
+    // ---- Event CRUD (scoped to active persona) ---------------------------
+
+    /**
+     * @brief List all events of the active persona.
+     * @return Events sorted by start date descending.
+     */
+    virtual QList<asocial::v1::Event> listEvents() const = 0;
+
+    /**
+     * @brief Create a new Event object (not yet persisted).
+     *
+     * Populates uid, personaUid, createdAt, updatedAt, and started.
+     * Call storeEvent() to persist.
+     *
+     * @param title  Event title.
+     * @param date   Start date (ISO 8601 or yyyy-MM-dd).
+     * @return Populated Event, or default-constructed on failure.
+     */
+    virtual asocial::v1::Event createEvent(const QString& title, const QString& date) = 0;
+
+    /**
+     * @brief Retrieve an event by ID (scoped to active persona).
+     * @param eventId  UUID of the event.
+     * @return Populated Event, or default-constructed if not found.
+     */
+    virtual asocial::v1::Event getEvent(const QString& eventId) const = 0;
+
+    /**
+     * @brief Persist an Event to the database (insert or update).
+     *
+     * Automatically sets updatedAt to the current UTC time.
+     *
+     * @param event  Event to store (uid and personaUid must be set).
+     * @return true on success.
+     */
+    virtual bool storeEvent(const asocial::v1::Event& event) = 0;
+
+    /**
+     * @brief Delete an event.
+     * @param eventId  UUID of the event to delete.
+     * @return true on success.
+     */
+    virtual bool deleteEvent(const QString& eventId) = 0;
+
+    // ---- App lifecycle ---------------------------------------------------
     virtual void exit() = 0;
 
 signals:
-    virtual void currentProfileChanged(const QString& profileId) = 0;
+    virtual void profileChanged() = 0;
 };
 
 Q_DECLARE_INTERFACE(CoreInterface, "io.stateoftheart.asocial.CoreInterface")

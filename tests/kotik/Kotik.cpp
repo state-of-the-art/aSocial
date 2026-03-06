@@ -15,37 +15,98 @@
 
 // Author: Rabit (@rabits)
 
-#include "ProcessLogMonitor.h"
+#include "Kotik.h"
+
 #include <cstdio>
+#include <QDateTime>
 #include <QEventLoop>
 #include <QTimer>
 
-ProcessLogMonitor::ProcessLogMonitor(QProcess* process, QObject* parent)
+Kotik::Kotik(QObject* parent)
     : QObject(parent)
-    , m_process(process)
+    , m_process(new QProcess(this))
 {
-    Q_ASSERT(process);
+    Q_ASSERT(m_tmpDir.isValid());
 
-    connect(process, &QProcess::readyReadStandardOutput, this, &ProcessLogMonitor::onReadyReadStandardOutput);
-    connect(process, &QProcess::readyReadStandardError, this, &ProcessLogMonitor::onReadyReadStandardError);
+    m_process->setProgram("./aSocial-x86_64.AppImage");
+    m_process->setArguments({"--appimage-extract-and-run", "-w", m_tmpDir.path()});
+
+    connect(m_process, &QProcess::finished, this, &Kotik::onProcessFinished);
+    connect(m_process, &QProcess::errorOccurred, this, &Kotik::onProcessErrorOccurred);
+    connect(m_process, &QProcess::readyReadStandardOutput, this, &Kotik::onReadyReadStandardOutput);
+    connect(m_process, &QProcess::readyReadStandardError, this, &Kotik::onReadyReadStandardError);
+
+    m_process->start();
 }
 
-void ProcessLogMonitor::onReadyReadStandardOutput()
+Kotik::~Kotik()
+{
+    if( m_process->state() != QProcess::NotRunning ) {
+        m_process->write("exit\n");
+        if( !m_process->waitForFinished(3000) ) {
+            m_process->kill();
+            m_process->waitForFinished(1000);
+        }
+    }
+}
+
+void Kotik::write(const QString& command)
+{
+    m_process->write((command + "\n").toUtf8());
+}
+
+bool Kotik::exitApp(int timeoutMs)
+{
+    m_process->write("exit\n");
+    return m_process->waitForFinished(timeoutMs);
+}
+
+QString Kotik::tmpPath() const
+{
+    return m_tmpDir.path();
+}
+
+QString Kotik::tmpFilePath(const QString& fileName) const
+{
+    return m_tmpDir.filePath(fileName);
+}
+
+int Kotik::exitCode() const
+{
+    return m_process->exitCode();
+}
+
+void Kotik::onProcessErrorOccurred(QProcess::ProcessError error)
+{
+    Q_UNUSED(error);
+    QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
+    fprintf(stderr, "[%s] ------- PROCESS ERROR: %s\n", qPrintable(timestamp), qPrintable(m_process->errorString()));
+    fflush(stderr);
+}
+
+void Kotik::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    Q_UNUSED(exitStatus);
+    QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
+    fprintf(stderr, "[%s] ------- PROCESS FINISHED: %d\n", qPrintable(timestamp), exitCode);
+    fflush(stderr);
+}
+
+void Kotik::onReadyReadStandardOutput()
 {
     processData(m_process->readAllStandardOutput(), m_partialStdout, false);
 }
 
-void ProcessLogMonitor::onReadyReadStandardError()
+void Kotik::onReadyReadStandardError()
 {
     processData(m_process->readAllStandardError(), m_partialStderr, true);
 }
 
-void ProcessLogMonitor::processData(const QByteArray& data, QString& partialBuffer, bool isStderr)
+void Kotik::processData(const QByteArray& data, QString& partialBuffer, bool isStderr)
 {
     if( data.isEmpty() )
         return;
 
-    // Normalize Windows \r\n and lone \r to \n so lines are clean
     QString chunk = QString::fromUtf8(data);
     chunk.replace("\r\n", "\n").replace('\r', '\n');
     partialBuffer += chunk;
@@ -59,46 +120,42 @@ void ProcessLogMonitor::processData(const QByteArray& data, QString& partialBuff
         partialBuffer.clear();
     }
 
-    for( QString line : newLines ) { // copy because we may clean it
+    for( QString line : newLines ) {
         if( line.trimmed().isEmpty() )
             continue;
+
+        QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
 
         m_lines << line;
         if( isStderr )
             m_stderrLines << line;
 
-        // === STREAM EVERYTHING to test's stderr in real time ===
-        fprintf(stderr, "%s\n", qPrintable(line));
+        fprintf(stderr, "[%s] %s\n", qPrintable(timestamp), qPrintable(line));
         fflush(stderr);
 
         emit newLogLine(line);
     }
 
-    // Always notify after any data was processed (complete lines or partial update)
     emit outputUpdated();
 }
 
-bool ProcessLogMonitor::contains(const QString& substring, Qt::CaseSensitivity cs) const
+bool Kotik::contains(const QString& substring, Qt::CaseSensitivity cs) const
 {
-    // complete lines
     if( std::any_of(m_lines.cbegin(), m_lines.cend(), [&](const QString& l) { return l.contains(substring, cs); }) )
         return true;
 
-    // + partial lines
     return m_partialStdout.contains(substring, cs) || m_partialStderr.contains(substring, cs);
 }
 
-bool ProcessLogMonitor::contains(const QRegularExpression& regex) const
+bool Kotik::contains(const QRegularExpression& regex) const
 {
-    // complete lines
     if( std::any_of(m_lines.cbegin(), m_lines.cend(), [&](const QString& l) { return regex.match(l).hasMatch(); }) )
         return true;
 
-    // + partial lines
     return regex.match(m_partialStdout).hasMatch() || regex.match(m_partialStderr).hasMatch();
 }
 
-bool ProcessLogMonitor::waitForLog(const QString& substring, int timeoutMs)
+bool Kotik::waitForLog(const QString& substring, int timeoutMs)
 {
     if( contains(substring) )
         return true;
@@ -107,8 +164,7 @@ bool ProcessLogMonitor::waitForLog(const QString& substring, int timeoutMs)
     QTimer timer;
     timer.setSingleShot(true);
 
-    // This fires on complete lines AND when a partial buffer updates
-    connect(this, &ProcessLogMonitor::outputUpdated, &loop, [&, substring]() {
+    connect(this, &Kotik::outputUpdated, &loop, [&, substring]() {
         if( contains(substring) )
             loop.quit();
     });
@@ -120,7 +176,7 @@ bool ProcessLogMonitor::waitForLog(const QString& substring, int timeoutMs)
     return contains(substring);
 }
 
-bool ProcessLogMonitor::waitForLog(const QRegularExpression& regex, int timeoutMs)
+bool Kotik::waitForLog(const QRegularExpression& regex, int timeoutMs)
 {
     if( contains(regex) )
         return true;
@@ -129,7 +185,7 @@ bool ProcessLogMonitor::waitForLog(const QRegularExpression& regex, int timeoutM
     QTimer timer;
     timer.setSingleShot(true);
 
-    connect(this, &ProcessLogMonitor::outputUpdated, &loop, [&, regex]() {
+    connect(this, &Kotik::outputUpdated, &loop, [&, regex]() {
         if( contains(regex) )
             loop.quit();
     });
@@ -141,7 +197,7 @@ bool ProcessLogMonitor::waitForLog(const QRegularExpression& regex, int timeoutM
     return contains(regex);
 }
 
-bool ProcessLogMonitor::noErrorLogs() const
+bool Kotik::noErrorLogs() const
 {
     QRegularExpression errRe(R"(\b(ERROR|CRITICAL|FATAL|Exception)\b)", QRegularExpression::CaseInsensitiveOption);
     return std::none_of(m_stderrLines.cbegin(), m_stderrLines.cend(), [&](const QString& l) {
@@ -149,7 +205,7 @@ bool ProcessLogMonitor::noErrorLogs() const
     });
 }
 
-void ProcessLogMonitor::clear()
+void Kotik::clear()
 {
     m_lines.clear();
     m_stderrLines.clear();

@@ -85,6 +85,22 @@ public:
     virtual QSqlDatabase openDatabaseFile(QIODevice* device) = 0;
 
     /**
+     * @brief Return the current in-memory database handle.
+     *
+     * Only valid after a successful openDatabaseFile() and before
+     * closeDatabase().  The returned handle shares state with the one
+     * returned by openDatabaseFile().
+     *
+     * @return Active QSqlDatabase, or an invalid handle if none is open.
+     */
+    virtual QSqlDatabase database() const = 0;
+
+    /**
+     * @brief Whether a database is currently open.
+     */
+    virtual bool isDatabaseOpen() const = 0;
+
+    /**
      * @brief Serialise the in-memory database back to the device.
      */
     virtual void flushDatabase() = 0;

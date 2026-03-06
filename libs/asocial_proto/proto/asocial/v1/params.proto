@@ -1,0 +1,15 @@
+// Copyright (C) 2026  aSocial Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Per-profile key/value parameters stored alongside social data in DBSQL.
+
+syntax = "proto3";
+
+package asocial.v1;
+
+// Generic key/value pair inside the profile database.
+message ProfileParameters
+{
+    string key = 1;   // Dotted path, e.g. "ui.theme"
+    string value = 2; // JSON-encoded value
+}

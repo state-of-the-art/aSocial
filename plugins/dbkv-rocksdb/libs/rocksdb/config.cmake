@@ -15,17 +15,7 @@
 
 # Author: Rabit (@rabits)
 
-cmake_minimum_required(VERSION 3.16)
-project(ui-gui LANGUAGES CXX VERSION 0.1.0)
-
-# To build just the plugin
-if(NOT DEFINED PLUGINS_SOURCE_DIR)
-    set(PLUGINS_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
-endif()
-include(${PLUGINS_SOURCE_DIR}/plugin.cmake)
-
-
-# Additional library deps
-find_package(Qt6 REQUIRED COMPONENTS Quick)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Quick)
+# rocksdb configuration
+set(lib_rocksdb_version 10.10.1) # Feb 2 2026
+set(lib_rocksdb_url https://github.com/facebook/rocksdb/archive/refs/tags/v${lib_rocksdb_version}.tar.gz)
+set(lib_rocksdb_hash SHA256=df2ff348f3fac8578fd4b727eee7267aaf90cd403c99b55e898d1db63fa8cff5)

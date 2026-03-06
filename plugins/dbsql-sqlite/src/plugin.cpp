@@ -87,6 +87,16 @@ QSqlDatabase Plugin::openDatabaseFile(QIODevice* device)
     return m_db.open(device);
 }
 
+QSqlDatabase Plugin::database() const
+{
+    return m_db.database();
+}
+
+bool Plugin::isDatabaseOpen() const
+{
+    return m_db.isOpen();
+}
+
 void Plugin::flushDatabase()
 {
     m_db.flush();

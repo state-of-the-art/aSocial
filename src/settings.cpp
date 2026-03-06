@@ -68,3 +68,8 @@ void Settings::setDefault(QString key, QVariant value)
         emit settingChanged(key);
     }
 }
+
+QStringList Settings::listAllKeys() const
+{
+    return m_settings.allKeys();
+}

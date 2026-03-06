@@ -21,68 +21,624 @@
 #include "settings.h"
 
 #include <QCoreApplication>
+#include <QFile>
+#include <QJsonDocument>
 #include <QLoggingCategory>
+#include <QRandomGenerator>
+#include <QUuid>
+
+#include <QtProtobuf/QProtobufSerializer>
+
+#include "asocial/v1/contact.qpb.h"
+#include "asocial/v1/event.qpb.h"
+#include "asocial/v1/group.qpb.h"
+#include "asocial/v1/message.qpb.h"
+#include "asocial/v1/params.qpb.h"
+#include "asocial/v1/profile.qpb.h"
 
 Q_LOGGING_CATEGORY(Cc, "Core")
 
+// ---- Key-scheme constants --------------------------------------------------
+// Hierarchical prefix design for efficient range scans in RocksDB:
+//   p                                       -> Profile
+//   a/<persona_uid>                         -> Persona
+//   c/<persona_uid>/<contact_uid>           -> Contact
+//   g/<persona_uid>/<group_uid>             -> Group
+//   gm/<group_uid>/<contact_uid>            -> GroupMember
+//   m/<persona_uid>/<created_ms>/<msg_uid>  -> Message (time-ordered)
+//   e/<persona_uid>/<event_uid>             -> Event
+//   pp/<key>                                -> ProfileParam
+namespace KV {
+static const QString PROFILE = QStringLiteral("p");
+static const QString PERSONA_PFX = QStringLiteral("a/");
+static const QString CONTACT_PFX = QStringLiteral("c/");
+static const QString GROUP_PFX = QStringLiteral("g/");
+static const QString GROUP_MEMBER_PFX = QStringLiteral("gm/");
+static const QString MESSAGE_PFX = QStringLiteral("m/");
+static const QString EVENT_PFX = QStringLiteral("e/");
+static const QString PARAM_PFX = QStringLiteral("pp/");
+
+inline QString personaKey(const QString& uid)
+{
+    return PERSONA_PFX + uid;
+}
+inline QString contactKey(const QString& personaUid, const QString& uid)
+{
+    return CONTACT_PFX + personaUid + '/' + uid;
+}
+inline QString contactPrefix(const QString& personaUid)
+{
+    return CONTACT_PFX + personaUid + '/';
+}
+inline QString groupKey(const QString& personaUid, const QString& uid)
+{
+    return GROUP_PFX + personaUid + '/' + uid;
+}
+inline QString groupPrefix(const QString& personaUid)
+{
+    return GROUP_PFX + personaUid + '/';
+}
+inline QString groupMemberKey(const QString& groupUid, const QString& contactUid)
+{
+    return GROUP_MEMBER_PFX + groupUid + '/' + contactUid;
+}
+inline QString groupMemberPrefix(const QString& groupUid)
+{
+    return GROUP_MEMBER_PFX + groupUid + '/';
+}
+inline QString messageKey(const QString& personaUid, qint64 createdMs, const QString& uid)
+{
+    return MESSAGE_PFX + personaUid + '/' + QString::number(createdMs).rightJustified(16, '0') + '/' + uid;
+}
+inline QString messagePrefix(const QString& personaUid)
+{
+    return MESSAGE_PFX + personaUid + '/';
+}
+inline QString eventKey(const QString& personaUid, const QString& uid)
+{
+    return EVENT_PFX + personaUid + '/' + uid;
+}
+inline QString eventPrefix(const QString& personaUid)
+{
+    return EVENT_PFX + personaUid + '/';
+}
+inline QString settingKey(const QString& key)
+{
+    return PARAM_PFX + key;
+}
+} // namespace KV
+
+// ---- Helpers for Timestamp <-> QDateTime -----------------------------------
+namespace {
+
+google::protobuf::Timestamp toTimestamp(const QDateTime& dt)
+{
+    google::protobuf::Timestamp ts;
+    ts.setSeconds(dt.toSecsSinceEpoch());
+    ts.setNanos(dt.time().msec() * 1000000);
+    return ts;
+}
+
+QDateTime fromTimestamp(const google::protobuf::Timestamp& ts)
+{
+    return QDateTime::fromMSecsSinceEpoch(ts.seconds() * 1000 + ts.nanos() / 1000000);
+}
+
+QString timestampToIso(const google::protobuf::Timestamp& ts)
+{
+    return fromTimestamp(ts).toString(Qt::ISODate);
+}
+
+/** @brief Extract epoch milliseconds from a Timestamp for key composition. */
+qint64 timestampToMsEpoch(const google::protobuf::Timestamp& ts)
+{
+    return ts.seconds() * 1000 + ts.nanos() / 1000000;
+}
+
+// ---- Export helpers: proto -> QVariantMap (used only in export/import) ------
+
+QVariantMap profileToMap(const asocial::v1::Profile& p)
+{
+    return {
+        {"id", p.uid()},
+        {"display_name", p.displayName()},
+        {"bio", p.bio()},
+        {"avatar", p.avatar().toBase64()},
+        {"created_at", timestampToIso(p.createdAt())},
+        {"updated_at", timestampToIso(p.updatedAt())}};
+}
+
+QVariantMap personaToMap(const asocial::v1::Persona& p)
+{
+    return {
+        {"id", p.uid()},
+        {"profile_id", p.profileUid()},
+        {"display_name", p.displayName()},
+        {"bio", p.bio()},
+        {"is_default", p.isDefault()},
+        {"created_at", timestampToIso(p.createdAt())},
+        {"updated_at", timestampToIso(p.updatedAt())}};
+}
+
+QVariantMap contactToMap(const asocial::v1::Contact& c)
+{
+    return {
+        {"id", c.uid()},
+        {"persona_id", c.personaUid()},
+        {"display_name", c.displayName()},
+        {"public_key", c.publicKey().toHex()},
+        {"trust_level", static_cast<int>(c.trustLevel())},
+        {"notes", c.notes()},
+        {"created_at", timestampToIso(c.createdAt())},
+        {"updated_at", timestampToIso(c.updatedAt())}};
+}
+
+QVariantMap groupToMap(const asocial::v1::Group& g)
+{
+    return {
+        {"id", g.uid()},
+        {"persona_id", g.personaUid()},
+        {"name", g.name()},
+        {"description", g.description()},
+        {"created_at", timestampToIso(g.createdAt())},
+        {"updated_at", timestampToIso(g.updatedAt())}};
+}
+
+QVariantMap messageToMap(const asocial::v1::Message& m)
+{
+    return {
+        {"id", m.uid()},
+        {"persona_id", m.personaUid()},
+        {"thread_id", m.threadUid()},
+        {"sender_contact_id", m.senderContactUid()},
+        {"recipient_type", m.recipientType()},
+        {"recipient_id", m.recipientUid()},
+        {"body", m.body()},
+        {"created_at", timestampToIso(m.createdAt())}};
+}
+
+QVariantMap eventToMap(const asocial::v1::Event& e)
+{
+    return {
+        {"id", e.uid()},
+        {"persona_id", e.personaUid()},
+        {"title", e.title()},
+        {"description", e.description()},
+        {"event_date", e.hasStarted() ? timestampToIso(e.started()) : QString()},
+        {"location", e.location()},
+        {"created_at", timestampToIso(e.createdAt())},
+        {"updated_at", timestampToIso(e.updatedAt())}};
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
 Core* Core::s_pInstance = nullptr;
 
 Core::Core(QObject* parent)
     : QObject(parent)
-    , m_dbkv(nullptr)
-    , m_dbsql(nullptr)
 {
     qCDebug(Cc) << "Core singleton created";
 }
 
 Core::~Core()
 {
+    closeProfile();
     qCDebug(Cc) << "Core singleton destroyed";
 }
+
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
+
+QString Core::newId()
+{
+    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+void Core::secureWipe(QByteArray& buf)
+{
+    if( buf.isEmpty() )
+        return;
+    auto* rng = QRandomGenerator::global();
+    auto* data = reinterpret_cast<quint32*>(buf.data());
+    const qsizetype words = buf.size() / static_cast<qsizetype>(sizeof(quint32));
+    for( qsizetype i = 0; i < words; ++i )
+        data[i] = rng->generate();
+    const qsizetype tail = buf.size() % static_cast<qsizetype>(sizeof(quint32));
+    for( qsizetype i = buf.size() - tail; i < buf.size(); ++i )
+        buf[i] = static_cast<char>(rng->generate() & 0xFF);
+    buf.clear();
+}
+
+void Core::flushProfile()
+{
+    if( m_dbkvProfile && m_dbkvProfile->isDatabaseOpen() )
+        m_dbkvProfile->flushDatabase();
+}
+
+// ---------------------------------------------------------------------------
+// Plugin wiring
+// ---------------------------------------------------------------------------
+
+void Core::setDBKVPlugin(const QString& pluginName)
+{
+    Settings::I()->setting("plugins.dbkv.json.active", true);
+    Plugins::I()->settingActivePlugin("plugins.dbkv.json.active", "dbkv-json");
+    Plugins::I()->activateInterface("dbkv-json", QLatin1String(DBKVPluginInterface_iid));
+
+    m_dbkv = qobject_cast<DBKVPluginInterface*>(
+        Plugins::I()->getPlugin(QLatin1String(DBKVPluginInterface_iid), pluginName));
+
+    if( !m_dbkv )
+        qCWarning(Cc) << "Failed to load DBKV plugin:" << pluginName;
+    else
+        qCDebug(Cc) << "DBKV plugin set to:" << pluginName;
+}
+
+void Core::setDBKVProfilePlugin(const QString& pluginName)
+{
+    Settings::I()->setting("plugins.dbkv.rocksdb.active", true);
+    Plugins::I()->settingActivePlugin("plugins.dbkv.rocksdb.active", "dbkv-rocksdb");
+    Plugins::I()->activateInterface("dbkv-rocksdb", QLatin1String(DBKVPluginInterface_iid));
+
+    m_dbkvProfile = qobject_cast<DBKVPluginInterface*>(
+        Plugins::I()->getPlugin(QLatin1String(DBKVPluginInterface_iid), pluginName));
+
+    if( !m_dbkvProfile )
+        qCWarning(Cc) << "Failed to load DBKV profile plugin:" << pluginName;
+    else
+        qCDebug(Cc) << "DBKV profile plugin set to:" << pluginName;
+}
+
+void Core::setVFSPlugin(const QString& pluginName)
+{
+    Settings::I()->setting("plugins.vfs.cake.active", true);
+    Plugins::I()->settingActivePlugin("plugins.vfs.cake.active", "vfs-cake");
+    Plugins::I()->activateInterface("vfs-cake", QLatin1String("io.stateoftheart.asocial.plugin.VFSPluginInterface"));
+
+    m_vfs = qobject_cast<VFSPluginInterface*>(
+        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.VFSPluginInterface", pluginName));
+
+    if( !m_vfs )
+        qCWarning(Cc) << "Failed to load VFS plugin:" << pluginName;
+    else
+        qCDebug(Cc) << "VFS plugin set to:" << pluginName;
+}
+
+// ---------------------------------------------------------------------------
+// Plugin accessors
+// ---------------------------------------------------------------------------
 
 DBKVPluginInterface* Core::getDBKV() const
 {
     return m_dbkv;
 }
-
-DBSQLPluginInterface* Core::getDBSQL() const
+DBKVPluginInterface* Core::getDBKVProfile() const
 {
-    return m_dbsql;
+    return m_dbkvProfile;
+}
+VFSPluginInterface* Core::getVFS() const
+{
+    return m_vfs;
 }
 
-void Core::setDBKVPlugin(const QString& pluginName)
+// ---------------------------------------------------------------------------
+// Container lifecycle
+// ---------------------------------------------------------------------------
+
+bool Core::createContainer(const QString& path, quint64 maxSizeBytes)
 {
-    // Enable KV database plugin
-    Settings::I()->setting("plugins.dbkv.json.active", true);
-    Plugins::I()->settingActivePlugin("plugins.dbkv.json.active", "dbkv-json");
-    Plugins::I()->activateInterface("dbkv-json", QLatin1String("io.stateoftheart.asocial.plugin.DBKVPluginInterface"));
+    if( !m_vfs ) {
+        qCWarning(Cc) << "No VFS plugin available";
+        return false;
+    }
 
-    m_dbkv = qobject_cast<DBKVPluginInterface*>(
-        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBKVPluginInterface", pluginName));
+    VFSContainerPluginInterface* tmp = m_vfs->openContainer(path, QString(), maxSizeBytes);
+    if( !tmp ) {
+        qCWarning(Cc) << "Container creation failed:" << path;
+        return false;
+    }
+    tmp->close();
+    delete tmp;
 
-    if( !m_dbkv ) {
-        qCWarning(Cc) << "Failed to load DBKV plugin:" << pluginName;
+    m_containerPath = path;
+    qCDebug(Cc) << "Container created:" << path;
+    return true;
+}
+
+bool Core::isContainerInitialized() const
+{
+    return !m_containerPath.isEmpty() && QFile::exists(m_containerPath);
+}
+
+QString Core::containerPath() const
+{
+    return m_containerPath;
+}
+
+// ---------------------------------------------------------------------------
+// Profile lifecycle
+// ---------------------------------------------------------------------------
+
+bool Core::openProfile(const QString& password)
+{
+    if( !m_vfs || !m_dbkvProfile ) {
+        qCWarning(Cc) << "VFS or DBKV profile plugin not available";
+        return false;
+    }
+
+    if( !isContainerInitialized() ) {
+        qCWarning(Cc) << "Container not initialized";
+        return false;
+    }
+
+    closeProfile();
+
+    m_container = m_vfs->openContainer(m_containerPath, password);
+    if( !m_container ) {
+        qCWarning(Cc) << "Failed to open VFS container";
+        return false;
+    }
+
+    const QString dbName = dbFileName();
+    QStringList files = m_container->listFiles();
+
+    QString targetFile;
+    if( files.contains(dbName) ) {
+        targetFile = dbName;
     } else {
-        qCDebug(Cc) << "DBKV plugin set to:" << pluginName;
+        for( const QString& f : files ) {
+            if( f.endsWith(QLatin1String(".dat")) ) {
+                targetFile = f;
+                break;
+            }
+        }
+    }
+
+    if( targetFile.isEmpty() ) {
+        qCWarning(Cc) << "No database file found in VFS container for this password";
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    m_dbDevice = m_container->openFile(targetFile);
+    if( !m_dbDevice ) {
+        qCWarning(Cc) << "Failed to open database virtual file:" << targetFile;
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    m_dbkvProfile->closeDatabase();
+    if( !m_dbkvProfile->openDatabase(m_dbDevice) ) {
+        qCWarning(Cc) << "Failed to open DBKV database from VFS";
+        delete m_dbDevice;
+        m_dbDevice = nullptr;
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    asocial::v1::Profile prof;
+    if( !m_dbkvProfile->retrieveObject(KV::PROFILE, prof) ) {
+        qCWarning(Cc) << "No profile record found in KV store";
+        m_dbkvProfile->closeDatabase();
+        delete m_dbDevice;
+        m_dbDevice = nullptr;
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    m_currentProfileId = prof.uid();
+
+    QStringList personaKeys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
+    for( const QString& key : personaKeys ) {
+        asocial::v1::Persona persona;
+        if( m_dbkvProfile->retrieveObject(key, persona) ) {
+            if( persona.isDefault() ) {
+                m_activePersonaId = persona.uid();
+                break;
+            }
+            if( m_activePersonaId.isEmpty() )
+                m_activePersonaId = persona.uid();
+        }
+    }
+
+    qCDebug(Cc) << "Profile opened:" << m_currentProfileId << "persona:" << m_activePersonaId;
+    emit profileChanged();
+    return true;
+}
+
+bool Core::createProfile(const QString& password, const QString& displayName)
+{
+    if( !m_vfs || !m_dbkvProfile ) {
+        qCWarning(Cc) << "VFS or DBKV profile plugin not available";
+        return false;
+    }
+
+    if( !isContainerInitialized() ) {
+        qCWarning(Cc) << "Container not initialized";
+        return false;
+    }
+
+    closeProfile();
+
+    m_container = m_vfs->openContainer(m_containerPath, password);
+    if( !m_container ) {
+        qCWarning(Cc) << "Failed to open VFS container for new profile";
+        return false;
+    }
+
+    const QString dbName = dbFileName();
+    m_dbDevice = m_container->openFile(dbName, QIODevice::ReadWrite);
+    if( !m_dbDevice ) {
+        qCWarning(Cc) << "Failed to create database virtual file:" << dbName;
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    m_dbkvProfile->closeDatabase();
+    if( !m_dbkvProfile->openDatabase(m_dbDevice) ) {
+        qCWarning(Cc) << "Failed to open DBKV database on new VFS file";
+        delete m_dbDevice;
+        m_dbDevice = nullptr;
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
+    const QString profileId = newId();
+
+    asocial::v1::Profile prof;
+    prof.setUid(profileId);
+    prof.setDisplayName(displayName);
+    prof.setCreatedAt(now);
+    prof.setUpdatedAt(now);
+
+    if( !m_dbkvProfile->storeObject(KV::PROFILE, prof) ) {
+        qCWarning(Cc) << "Failed to store profile record";
+        m_dbkvProfile->closeDatabase();
+        delete m_dbDevice;
+        m_dbDevice = nullptr;
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+        return false;
+    }
+
+    const QString personaId = newId();
+    asocial::v1::Persona defaultPersona;
+    defaultPersona.setUid(personaId);
+    defaultPersona.setProfileUid(profileId);
+    defaultPersona.setDisplayName(displayName);
+    defaultPersona.setIsDefault(true);
+    defaultPersona.setCreatedAt(now);
+    defaultPersona.setUpdatedAt(now);
+
+    m_dbkvProfile->storeObject(KV::personaKey(personaId), defaultPersona);
+
+    flushProfile();
+
+    m_currentProfileId = profileId;
+    m_activePersonaId = personaId;
+
+    qCDebug(Cc) << "Profile created:" << profileId << "name:" << displayName;
+    emit profileChanged();
+    return true;
+}
+
+void Core::closeProfile()
+{
+    if( m_dbkvProfile && m_dbkvProfile->isDatabaseOpen() && m_dbDevice ) {
+        m_dbkvProfile->flushDatabase();
+        m_dbkvProfile->closeDatabase();
+    }
+
+    if( m_dbDevice ) {
+        m_dbDevice->close();
+        delete m_dbDevice;
+        m_dbDevice = nullptr;
+    }
+
+    if( m_container ) {
+        m_container->close();
+        delete m_container;
+        m_container = nullptr;
+    }
+
+    const bool hadProfile = !m_currentProfileId.isEmpty();
+    m_currentProfileId.clear();
+    m_activePersonaId.clear();
+
+    if( hadProfile ) {
+        qCDebug(Cc) << "Profile closed";
+        emit profileChanged();
     }
 }
 
-void Core::setDBSQLPlugin(const QString& pluginName)
+bool Core::isProfileOpen() const
 {
-    // Enable SQL database plugin
-    Settings::I()->setting("plugins.dbsql.sqlite.active", true);
-    Plugins::I()->settingActivePlugin("plugins.dbsql.sqlite.active", "dbsql-sqlite");
-    Plugins::I()
-        ->activateInterface("dbsql-sqlite", QLatin1String("io.stateoftheart.asocial.plugin.DBSQLPluginInterface"));
+    return m_container && m_container->isOpen() && m_dbkvProfile && m_dbkvProfile->isDatabaseOpen() && m_dbDevice;
+}
 
-    m_dbsql = qobject_cast<DBSQLPluginInterface*>(
-        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.DBSQLPluginInterface", pluginName));
-
-    if( !m_dbsql ) {
-        qCWarning(Cc) << "Failed to load DBSQL plugin:" << pluginName;
-    } else {
-        qCDebug(Cc) << "DBSQL plugin set to:" << pluginName;
+bool Core::deleteCurrentProfile(std::function<void(int)> progress)
+{
+    if( !isProfileOpen() ) {
+        qCWarning(Cc) << "No profile is open";
+        return false;
     }
+
+    QStringList files = m_container->listFiles();
+    const int total = files.size();
+
+    if( m_dbkvProfile->isDatabaseOpen() )
+        m_dbkvProfile->closeDatabase();
+
+    if( m_dbDevice ) {
+        m_dbDevice->close();
+        delete m_dbDevice;
+        m_dbDevice = nullptr;
+    }
+
+    int done = 0;
+    for( const QString& f : files ) {
+        m_container->deleteFile(f);
+        ++done;
+        if( progress )
+            progress(total > 0 ? (done * 100 / total) : 100);
+    }
+
+    m_container->close();
+    delete m_container;
+    m_container = nullptr;
+
+    m_currentProfileId.clear();
+    m_activePersonaId.clear();
+
+    qCDebug(Cc) << "Profile deleted";
+    emit profileChanged();
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Profile data
+// ---------------------------------------------------------------------------
+
+asocial::v1::Profile Core::getProfile() const
+{
+    if( !isProfileOpen() )
+        return {};
+
+    asocial::v1::Profile prof;
+    if( !m_dbkvProfile->retrieveObject(KV::PROFILE, prof) )
+        return {};
+
+    return prof;
+}
+
+bool Core::storeProfile(const asocial::v1::Profile& profile)
+{
+    if( !isProfileOpen() )
+        return false;
+
+    auto prof = profile;
+    prof.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+
+    bool ok = m_dbkvProfile->storeObject(KV::PROFILE, prof);
+    if( ok )
+        flushProfile();
+    return ok;
 }
 
 QString Core::getCurrentProfileId() const
@@ -90,160 +646,754 @@ QString Core::getCurrentProfileId() const
     return m_currentProfileId;
 }
 
-void Core::setCurrentProfileId(const QString& profileId)
+QString Core::currentPersonaName() const
 {
-    if( m_currentProfileId != profileId ) {
-        m_currentProfileId = profileId;
-        emit currentProfileChanged(profileId);
-        qCDebug(Cc) << "Current profile changed to:" << profileId;
-    }
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    asocial::v1::Persona persona;
+    if( m_dbkvProfile->retrieveObject(KV::personaKey(m_activePersonaId), persona) )
+        return persona.displayName();
+    return {};
 }
 
-QString Core::createProfile(const QString& name)
+// ---------------------------------------------------------------------------
+// Export / Import
+// ---------------------------------------------------------------------------
+
+QByteArray Core::exportProfile(const QString& /*encryptionPassword*/)
 {
-    if( !m_dbkv ) {
-        qCWarning(Cc) << "No DBKV plugin available";
-        return QString();
+    if( !isProfileOpen() )
+        return {};
+
+    QVariantMap data;
+
+    data["profile"] = profileToMap(getProfile());
+
+    // Personas
+    QVariantList personaList;
+    for( const auto& p : listPersonas() )
+        personaList.append(personaToMap(p));
+    data["personas"] = personaList;
+
+    // Contacts, Groups, Messages, Events for each persona
+    QVariantList allContacts, allGroups, allMessages, allEvents;
+    const QString savedPersona = m_activePersonaId;
+
+    QStringList personaKeys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
+    for( const QString& key : personaKeys ) {
+        asocial::v1::Persona persona;
+        if( !m_dbkvProfile->retrieveObject(key, persona) )
+            continue;
+
+        const_cast<Core*>(this)->m_activePersonaId = persona.uid();
+
+        for( const auto& c : listContacts() )
+            allContacts.append(contactToMap(c));
+        for( const auto& g : listGroups() )
+            allGroups.append(groupToMap(g));
+        for( const auto& m : listMessages(10000) )
+            allMessages.append(messageToMap(m));
+        for( const auto& e : listEvents() )
+            allEvents.append(eventToMap(e));
     }
 
-    if( !m_dbsql ) {
-        qCWarning(Cc) << "No DBSQL plugin available";
-        return QString();
-    }
+    const_cast<Core*>(this)->m_activePersonaId = savedPersona;
 
-    QUuid profileId = QUuid::createUuid();
-    QString profileIdStr = profileId.toString(QUuid::WithoutBraces);
+    data["contacts"] = allContacts;
+    data["groups"] = allGroups;
+    data["messages"] = allMessages;
+    data["events"] = allEvents;
 
-    QVariantMap profileData;
-    profileData["id"] = profileIdStr;
-    profileData["name"] = name;
-    profileData["created"] = QDateTime::currentDateTime();
-
-    // TODO: Move to DBSQL
-    if( !m_dbkv->storeObject("profile_" + profileIdStr, profileData) ) {
-        qCWarning(Cc) << "Failed to create profile storage object";
-        return QString();
-    }
-
-    qCDebug(Cc) << "Created profile:" << profileIdStr << "with name:" << name;
-
-    return profileIdStr;
+    QByteArray json = QJsonDocument::fromVariant(data).toJson(QJsonDocument::Compact);
+    QByteArray result = json.toBase64();
+    secureWipe(json);
+    return result;
 }
 
-QString Core::importProfile(const QString& serializedData)
+bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPassword*/, const QString& vfsPassword)
 {
-    if( !m_dbkv ) {
-        qCWarning(Cc) << "No DBKV plugin available";
-        return QString();
-    }
-
-    if( !m_dbsql ) {
-        qCWarning(Cc) << "No DBSQL plugin available";
-        return QString();
-    }
-
-    QByteArray jsonData = QByteArray::fromBase64(serializedData.toUtf8());
-    QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+    QByteArray json = QByteArray::fromBase64(data);
+    QJsonDocument doc = QJsonDocument::fromJson(json);
+    secureWipe(json);
 
     if( !doc.isObject() ) {
-        qCWarning(Cc) << "Invalid serialized profile data";
-        return QString();
-    }
-
-    QVariantMap profileData = doc.object().toVariantMap();
-    QString profileId = profileData["id"].toString();
-
-    if( profileId.isEmpty() ) {
-        qCWarning(Cc) << "Profile data missing ID";
-        return QString();
-    }
-
-    // TODO: Move to DBSQL
-    // Check if profile already exists
-    if( m_dbkv->objectExists("profile_" + profileId) ) {
-        qCWarning(Cc) << "Profile already exists:" << profileId;
-        return QString();
-    }
-
-    // Store profile metadata
-    if( !m_dbkv->storeObject("profile_" + profileId, profileData) ) {
-        qCWarning(Cc) << "Unable to store profile:" << profileId;
-        return QString();
-    }
-
-    qCDebug(Cc) << "Imported profile:" << profileId;
-
-    return profileId;
-}
-
-QString Core::exportProfile(const QString& profileId)
-{
-    QByteArray jsonData = QJsonDocument::fromVariant(getProfileInfo(profileId)).toJson();
-
-    return QString(jsonData.toBase64());
-}
-
-bool Core::deleteProfile(const QString& profileId)
-{
-    if( !m_dbkv ) {
-        qCWarning(Cc) << "No DBKV plugin available";
+        qCWarning(Cc) << "Invalid import data";
         return false;
     }
 
-    if( !m_dbsql ) {
-        qCWarning(Cc) << "No DBSQL plugin available";
+    QVariantMap root = doc.object().toVariantMap();
+    QVariantMap profMap = root["profile"].toMap();
+    QString displayName = profMap.value("display_name", "Imported").toString();
+
+    if( !createProfile(vfsPassword, displayName) ) {
+        qCWarning(Cc) << "Failed to create profile for import";
         return false;
     }
 
-    // TODO: Move to DBSQL
-    if( m_dbkv->objectExists("profile_" + profileId) ) {
-        if( !m_dbkv->deleteObject("profile_" + profileId) ) {
-            qCWarning(Cc) << "Failed to delete profile:" << profileId;
-            return false;
+    // Update profile fields
+    if( profMap.contains("bio") ) {
+        auto prof = getProfile();
+        prof.setBio(profMap["bio"].toString());
+        storeProfile(prof);
+    }
+
+    // Import personas
+    QVariantList personas = root["personas"].toList();
+    QMap<QString, QString> personaIdMap;
+
+    // Map first imported persona to the auto-created default
+    if( !personas.isEmpty() ) {
+        QString oldDefault = personas.first().toMap().value("id").toString();
+        personaIdMap[oldDefault] = m_activePersonaId;
+
+        QVariantMap pm = personas.first().toMap();
+        auto defaultPersona = getPersona(m_activePersonaId);
+        if( pm.contains("display_name") )
+            defaultPersona.setDisplayName(pm["display_name"].toString());
+        if( pm.contains("bio") )
+            defaultPersona.setBio(pm["bio"].toString());
+        storePersona(defaultPersona);
+    }
+
+    for( int i = 1; i < personas.size(); ++i ) {
+        QVariantMap pm = personas[i].toMap();
+        QString oldId = pm.value("id").toString();
+        auto persona = createPersona(pm.value("display_name").toString());
+        if( !persona.uid().isEmpty() && storePersona(persona) )
+            personaIdMap[oldId] = persona.uid();
+    }
+
+    // Import contacts
+    QVariantList contacts = root["contacts"].toList();
+    QMap<QString, QString> contactIdMap;
+    for( const QVariant& v : contacts ) {
+        QVariantMap cm = v.toMap();
+        QString oldId = cm.value("id").toString();
+        QString personaId = personaIdMap.value(cm.value("persona_id").toString(), m_activePersonaId);
+        m_activePersonaId = personaId;
+        auto contact = createContact(cm.value("display_name").toString());
+        if( !contact.uid().isEmpty() ) {
+            if( cm.contains("notes") )
+                contact.setNotes(cm["notes"].toString());
+            if( cm.contains("trust_level") )
+                contact.setTrustLevel(cm["trust_level"].toInt());
+            if( storeContact(contact) )
+                contactIdMap[oldId] = contact.uid();
         }
     }
 
-    qCDebug(Cc) << "Deleted profile:" << profileId;
+    // Import groups
+    QVariantList groups = root["groups"].toList();
+    for( const QVariant& v : groups ) {
+        QVariantMap gm = v.toMap();
+        QString personaId = personaIdMap.value(gm.value("persona_id").toString(), m_activePersonaId);
+        m_activePersonaId = personaId;
+        auto group = createGroup(gm.value("name").toString());
+        if( !group.uid().isEmpty() )
+            storeGroup(group);
+    }
+
+    // Import messages
+    QVariantList messages = root["messages"].toList();
+    for( const QVariant& v : messages ) {
+        QVariantMap mm = v.toMap();
+        QString personaId = personaIdMap.value(mm.value("persona_id").toString(), m_activePersonaId);
+        m_activePersonaId = personaId;
+        auto msg = createMessage(
+            mm.value("recipient_id").toString(),
+            mm.value("body").toString(),
+            mm.value("recipient_type", "contact").toString());
+        if( !msg.uid().isEmpty() )
+            storeMessage(msg);
+    }
+
+    // Import events
+    QVariantList events = root["events"].toList();
+    for( const QVariant& v : events ) {
+        QVariantMap em = v.toMap();
+        QString personaId = personaIdMap.value(em.value("persona_id").toString(), m_activePersonaId);
+        m_activePersonaId = personaId;
+        auto event = createEvent(em.value("title").toString(), em.value("event_date").toString());
+        if( !event.uid().isEmpty() )
+            storeEvent(event);
+    }
+
+    // Restore the default persona
+    QStringList pKeys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
+    for( const QString& key : pKeys ) {
+        asocial::v1::Persona p;
+        if( m_dbkvProfile->retrieveObject(key, p) && p.isDefault() ) {
+            m_activePersonaId = p.uid();
+            break;
+        }
+    }
+
+    flushProfile();
+    qCDebug(Cc) << "Profile imported successfully";
     return true;
 }
 
-QStringList Core::listProfiles()
+// ---------------------------------------------------------------------------
+// Settings (system-wide, QSettings-backed)
+// ---------------------------------------------------------------------------
+
+// Plugins can only read app settings
+QVariant Core::getSetting(const QString& key) const
 {
-    if( !m_dbkv ) {
-        qCWarning(Cc) << "No DBKV plugin available";
-        return QStringList();
-    }
-
-    if( !m_dbsql ) {
-        qCWarning(Cc) << "No DBSQL plugin available";
-        return QStringList();
-    }
-
-    // TODO: Move to DBSQL
-    return m_dbkv->listObjects("profile_");
+    return Settings::I()->setting(key);
 }
 
-QVariantMap Core::getProfileInfo(const QString& profileId)
+// Commented to prevent plugins from manipulating with app settings
+bool Core::setSetting(const QString& key, const QVariant& value)
 {
-    if( !m_dbkv ) {
-        qCWarning(Cc) << "No DBKV plugin available";
-        return QVariantMap();
-    }
-
-    if( !m_dbsql ) {
-        qCWarning(Cc) << "No DBSQL plugin available";
-        return QVariantMap();
-    }
-
-    // TODO: Move to DBSQL
-    QVariantMap object;
-    if( !m_dbkv->retrieveObject("profile_" + profileId, object) ) {
-        qCWarning(Cc) << "Failed to get profile:" << profileId;
-        return QVariantMap();
-    }
-
-    return object;
+    Settings::I()->setting(key, value);
+    return true;
 }
+
+QStringList Core::listSettings() const
+{
+    return Settings::I()->listAllKeys();
+}
+
+// ---------------------------------------------------------------------------
+// Persona
+// ---------------------------------------------------------------------------
+
+bool Core::setActivePersona(const QString& personaId)
+{
+    if( !isProfileOpen() )
+        return false;
+
+    asocial::v1::Persona persona;
+    if( m_dbkvProfile->retrieveObject(KV::personaKey(personaId), persona) ) {
+        m_activePersonaId = personaId;
+        qCDebug(Cc) << "Active persona set to:" << persona.displayName();
+        return true;
+    }
+    return false;
+}
+
+QString Core::activePersonaId() const
+{
+    return m_activePersonaId;
+}
+
+// ---------------------------------------------------------------------------
+// Persona CRUD
+// ---------------------------------------------------------------------------
+
+QList<asocial::v1::Persona> Core::listPersonas() const
+{
+    QList<asocial::v1::Persona> result;
+    if( !isProfileOpen() )
+        return result;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
+    for( const QString& key : keys ) {
+        asocial::v1::Persona p;
+        if( !m_dbkvProfile->retrieveObject(key, p) )
+            continue;
+        if( p.profileUid() != m_currentProfileId )
+            continue;
+        result.append(p);
+    }
+
+    std::sort(result.begin(), result.end(), [](const asocial::v1::Persona& a, const asocial::v1::Persona& b) {
+        if( a.isDefault() != b.isDefault() )
+            return a.isDefault();
+        return a.displayName() < b.displayName();
+    });
+
+    return result;
+}
+
+asocial::v1::Persona Core::createPersona(const QString& displayName)
+{
+    if( !isProfileOpen() )
+        return {};
+
+    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
+    const QString uid = newId();
+
+    asocial::v1::Persona p;
+    p.setUid(uid);
+    p.setProfileUid(m_currentProfileId);
+    p.setDisplayName(displayName);
+    p.setIsDefault(false);
+    p.setCreatedAt(now);
+    p.setUpdatedAt(now);
+
+    return p;
+}
+
+asocial::v1::Persona Core::getPersona(const QString& personaId) const
+{
+    if( !isProfileOpen() )
+        return {};
+
+    asocial::v1::Persona p;
+    if( !m_dbkvProfile->retrieveObject(KV::personaKey(personaId), p) )
+        return {};
+
+    return p;
+}
+
+bool Core::storePersona(const asocial::v1::Persona& persona)
+{
+    if( !isProfileOpen() || persona.uid().isEmpty() )
+        return false;
+
+    auto p = persona;
+    p.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+
+    bool ok = m_dbkvProfile->storeObject(KV::personaKey(p.uid()), p);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::deletePersona(const QString& personaId)
+{
+    if( !isProfileOpen() )
+        return false;
+
+    // Cascading delete of all dependent entities
+    QStringList contactKeys = m_dbkvProfile->listObjects(KV::contactPrefix(personaId));
+    for( const QString& key : contactKeys )
+        m_dbkvProfile->deleteObject(key);
+
+    QStringList groupKeys = m_dbkvProfile->listObjects(KV::groupPrefix(personaId));
+    for( const QString& key : groupKeys ) {
+        asocial::v1::Group g;
+        if( m_dbkvProfile->retrieveObject(key, g) ) {
+            QStringList memberKeys = m_dbkvProfile->listObjects(KV::groupMemberPrefix(g.uid()));
+            for( const QString& mk : memberKeys )
+                m_dbkvProfile->deleteObject(mk);
+        }
+        m_dbkvProfile->deleteObject(key);
+    }
+
+    QStringList msgKeys = m_dbkvProfile->listObjects(KV::messagePrefix(personaId));
+    for( const QString& key : msgKeys )
+        m_dbkvProfile->deleteObject(key);
+
+    QStringList evtKeys = m_dbkvProfile->listObjects(KV::eventPrefix(personaId));
+    for( const QString& key : evtKeys )
+        m_dbkvProfile->deleteObject(key);
+
+    bool ok = m_dbkvProfile->deleteObject(KV::personaKey(personaId));
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+// ---------------------------------------------------------------------------
+// Contact CRUD
+// ---------------------------------------------------------------------------
+
+QList<asocial::v1::Contact> Core::listContacts() const
+{
+    QList<asocial::v1::Contact> result;
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return result;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::contactPrefix(m_activePersonaId));
+    for( const QString& key : keys ) {
+        asocial::v1::Contact c;
+        if( !m_dbkvProfile->retrieveObject(key, c) )
+            continue;
+        result.append(c);
+    }
+
+    std::sort(result.begin(), result.end(), [](const asocial::v1::Contact& a, const asocial::v1::Contact& b) {
+        return a.displayName() < b.displayName();
+    });
+    return result;
+}
+
+asocial::v1::Contact Core::createContact(const QString& displayName)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
+    const QString uid = newId();
+
+    asocial::v1::Contact c;
+    c.setUid(uid);
+    c.setPersonaUid(m_activePersonaId);
+    c.setDisplayName(displayName);
+    c.setCreatedAt(now);
+    c.setUpdatedAt(now);
+
+    return c;
+}
+
+asocial::v1::Contact Core::getContact(const QString& contactId) const
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    asocial::v1::Contact c;
+    if( !m_dbkvProfile->retrieveObject(KV::contactKey(m_activePersonaId, contactId), c) )
+        return {};
+
+    return c;
+}
+
+bool Core::storeContact(const asocial::v1::Contact& contact)
+{
+    if( !isProfileOpen() || contact.uid().isEmpty() || contact.personaUid().isEmpty() )
+        return false;
+
+    auto c = contact;
+    c.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+
+    bool ok = m_dbkvProfile->storeObject(KV::contactKey(c.personaUid(), c.uid()), c);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::deleteContact(const QString& contactId)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return false;
+
+    bool ok = m_dbkvProfile->deleteObject(KV::contactKey(m_activePersonaId, contactId));
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+QList<asocial::v1::Contact> Core::searchContacts(const QString& query) const
+{
+    QList<asocial::v1::Contact> result;
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return result;
+
+    const QString lowerQuery = query.toLower();
+    QStringList keys = m_dbkvProfile->listObjects(KV::contactPrefix(m_activePersonaId));
+    for( const QString& key : keys ) {
+        asocial::v1::Contact c;
+        if( !m_dbkvProfile->retrieveObject(key, c) )
+            continue;
+        if( c.displayName().toLower().contains(lowerQuery) || c.notes().toLower().contains(lowerQuery) )
+            result.append(c);
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Group CRUD
+// ---------------------------------------------------------------------------
+
+QList<asocial::v1::Group> Core::listGroups() const
+{
+    QList<asocial::v1::Group> result;
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return result;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::groupPrefix(m_activePersonaId));
+    for( const QString& key : keys ) {
+        asocial::v1::Group g;
+        if( !m_dbkvProfile->retrieveObject(key, g) )
+            continue;
+        result.append(g);
+    }
+
+    std::sort(result.begin(), result.end(), [](const asocial::v1::Group& a, const asocial::v1::Group& b) {
+        return a.name() < b.name();
+    });
+    return result;
+}
+
+asocial::v1::Group Core::createGroup(const QString& name)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
+    const QString uid = newId();
+
+    asocial::v1::Group g;
+    g.setUid(uid);
+    g.setPersonaUid(m_activePersonaId);
+    g.setName(name);
+    g.setCreatedAt(now);
+    g.setUpdatedAt(now);
+
+    return g;
+}
+
+asocial::v1::Group Core::getGroup(const QString& groupId) const
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    asocial::v1::Group g;
+    if( !m_dbkvProfile->retrieveObject(KV::groupKey(m_activePersonaId, groupId), g) )
+        return {};
+
+    return g;
+}
+
+bool Core::storeGroup(const asocial::v1::Group& group)
+{
+    if( !isProfileOpen() || group.uid().isEmpty() || group.personaUid().isEmpty() )
+        return false;
+
+    auto g = group;
+    g.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+
+    bool ok = m_dbkvProfile->storeObject(KV::groupKey(g.personaUid(), g.uid()), g);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::deleteGroup(const QString& groupId)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return false;
+
+    QStringList memberKeys = m_dbkvProfile->listObjects(KV::groupMemberPrefix(groupId));
+    for( const QString& mk : memberKeys )
+        m_dbkvProfile->deleteObject(mk);
+
+    bool ok = m_dbkvProfile->deleteObject(KV::groupKey(m_activePersonaId, groupId));
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::addGroupMember(const QString& groupId, const QString& contactId)
+{
+    if( !isProfileOpen() )
+        return false;
+
+    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
+    asocial::v1::GroupMember gm;
+    gm.setGroupUid(groupId);
+    gm.setContactUid(contactId);
+    gm.setRole(QStringLiteral("member"));
+    gm.setJoinedAt(now);
+
+    bool ok = m_dbkvProfile->storeObject(KV::groupMemberKey(groupId, contactId), gm);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::removeGroupMember(const QString& groupId, const QString& contactId)
+{
+    if( !isProfileOpen() )
+        return false;
+
+    bool ok = m_dbkvProfile->deleteObject(KV::groupMemberKey(groupId, contactId));
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+QList<asocial::v1::GroupMember> Core::listGroupMembers(const QString& groupId) const
+{
+    QList<asocial::v1::GroupMember> result;
+    if( !isProfileOpen() )
+        return result;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::groupMemberPrefix(groupId));
+    for( const QString& key : keys ) {
+        asocial::v1::GroupMember gm;
+        if( !m_dbkvProfile->retrieveObject(key, gm) )
+            continue;
+        result.append(gm);
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Message CRUD
+// ---------------------------------------------------------------------------
+
+QList<asocial::v1::Message> Core::listMessages(int limit) const
+{
+    QList<asocial::v1::Message> result;
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return result;
+
+    // Keys are time-ordered thanks to the zero-padded millisecond prefix
+    QStringList keys = m_dbkvProfile->listObjects(KV::messagePrefix(m_activePersonaId));
+
+    // Iterate in reverse for newest-first
+    for( int i = keys.size() - 1; i >= 0 && result.size() < limit; --i ) {
+        asocial::v1::Message m;
+        if( !m_dbkvProfile->retrieveObject(keys[i], m) )
+            continue;
+        result.append(m);
+    }
+    return result;
+}
+
+asocial::v1::Message Core::createMessage(const QString& recipientId, const QString& body, const QString& recipientType)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    const auto ts = toTimestamp(now);
+    const QString uid = newId();
+
+    asocial::v1::Message msg;
+    msg.setUid(uid);
+    msg.setPersonaUid(m_activePersonaId);
+    msg.setThreadUid(newId());
+    msg.setRecipientType(recipientType);
+    msg.setRecipientUid(recipientId);
+    msg.setBody(body);
+    msg.setCreatedAt(ts);
+
+    return msg;
+}
+
+asocial::v1::Message Core::getMessage(const QString& messageId) const
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::messagePrefix(m_activePersonaId));
+    for( const QString& key : keys ) {
+        asocial::v1::Message m;
+        if( !m_dbkvProfile->retrieveObject(key, m) )
+            continue;
+        if( m.uid() == messageId )
+            return m;
+    }
+    return {};
+}
+
+bool Core::storeMessage(const asocial::v1::Message& message)
+{
+    if( !isProfileOpen() || message.uid().isEmpty() || message.personaUid().isEmpty() )
+        return false;
+
+    const qint64 msEpoch = timestampToMsEpoch(message.createdAt());
+    const QString key = KV::messageKey(message.personaUid(), msEpoch, message.uid());
+
+    bool ok = m_dbkvProfile->storeObject(key, message);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::deleteMessage(const QString& messageId)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return false;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::messagePrefix(m_activePersonaId));
+    for( const QString& key : keys ) {
+        if( key.endsWith('/' + messageId) ) {
+            bool ok = m_dbkvProfile->deleteObject(key);
+            if( ok )
+                flushProfile();
+            return ok;
+        }
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// Event CRUD
+// ---------------------------------------------------------------------------
+
+QList<asocial::v1::Event> Core::listEvents() const
+{
+    QList<asocial::v1::Event> result;
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return result;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::eventPrefix(m_activePersonaId));
+    for( const QString& key : keys ) {
+        asocial::v1::Event e;
+        if( !m_dbkvProfile->retrieveObject(key, e) )
+            continue;
+        result.append(e);
+    }
+
+    std::sort(result.begin(), result.end(), [](const asocial::v1::Event& a, const asocial::v1::Event& b) {
+        QString dateA = a.hasStarted() ? timestampToIso(a.started()) : QString();
+        QString dateB = b.hasStarted() ? timestampToIso(b.started()) : QString();
+        return dateA > dateB;
+    });
+    return result;
+}
+
+asocial::v1::Event Core::createEvent(const QString& title, const QString& date)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
+    const QString uid = newId();
+
+    asocial::v1::Event e;
+    e.setUid(uid);
+    e.setPersonaUid(m_activePersonaId);
+    e.setTitle(title);
+    e.setCreatedAt(now);
+    e.setUpdatedAt(now);
+
+    QDateTime dt = QDateTime::fromString(date, Qt::ISODate);
+    if( !dt.isValid() )
+        dt = QDateTime::fromString(date, QStringLiteral("yyyy-MM-dd"));
+    if( dt.isValid() )
+        e.setStarted(toTimestamp(dt));
+
+    return e;
+}
+
+asocial::v1::Event Core::getEvent(const QString& eventId) const
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return {};
+
+    asocial::v1::Event e;
+    if( !m_dbkvProfile->retrieveObject(KV::eventKey(m_activePersonaId, eventId), e) )
+        return {};
+
+    return e;
+}
+
+bool Core::storeEvent(const asocial::v1::Event& event)
+{
+    if( !isProfileOpen() || event.uid().isEmpty() || event.personaUid().isEmpty() )
+        return false;
+
+    auto e = event;
+    e.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+
+    bool ok = m_dbkvProfile->storeObject(KV::eventKey(e.personaUid(), e.uid()), e);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::deleteEvent(const QString& eventId)
+{
+    if( !isProfileOpen() || m_activePersonaId.isEmpty() )
+        return false;
+
+    bool ok = m_dbkvProfile->deleteObject(KV::eventKey(m_activePersonaId, eventId));
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
 
 void Core::setApp(QCoreApplication* app)
 {
@@ -252,5 +1402,20 @@ void Core::setApp(QCoreApplication* app)
 
 void Core::exit()
 {
+    closeProfile();
     m_app->exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+QString Core::dbFileName() const
+{
+    if( m_dbkvProfile ) {
+        auto* pi = dynamic_cast<PluginInterface*>(m_dbkvProfile);
+        if( pi )
+            return pi->name() + QStringLiteral(".dat");
+    }
+    return QStringLiteral("dbkv-rocksdb.dat");
 }
