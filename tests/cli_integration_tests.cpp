@@ -134,7 +134,7 @@ private slots:
         Kotik* k2 = new Kotik(this);
         QVERIFY(k2->waitForLog("main>", 5000));
 
-        QVERIFY(k2->contains("Container opened: \"" + workdirPathFile("data.vfs")));
+        QVERIFY(k2->contains("Container opened: \"" + k2->workdirFilePath("data.vfs")));
 
         k->write("profile open testpass");
         QVERIFY(k2->waitForLog("Profile opened: TestUser", 5000));

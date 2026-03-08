@@ -107,11 +107,11 @@ int main(int argc, char* argv[])
     }
 
     // Activate UI plugin
-    Settings::I()->setting("plugins.ui.cmd.active", true);
-    Plugins::I()->settingActivePlugin("plugins.ui.cmd.active", "ui-cmd");
-    Plugins::I()->activateInterface("ui-cmd", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));
+    Settings::I()->setting("plugins.ui.console.active", true);
+    Plugins::I()->settingActivePlugin("plugins.ui.console.active", "ui-console");
+    Plugins::I()->activateInterface("ui-console", QLatin1String("io.stateoftheart.asocial.plugin.UiPluginInterface"));
     UiPluginInterface* plugin = qobject_cast<UiPluginInterface*>(
-        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-cmd"));
+        Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-console"));
     if( plugin == nullptr ) {
         qCFatal(Cm, "Unable to locate UI plugin");
         return 1;
