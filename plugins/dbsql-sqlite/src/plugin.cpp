@@ -32,6 +32,17 @@ QString Plugin::name() const
     return QLatin1String(PLUGIN_NAME);
 }
 
+QString Plugin::version() const
+{
+    return QStringLiteral(PLUGIN_VERSION);
+}
+
+PluginPermissions Plugin::requiredPermissions() const
+{
+    // Pure SQL engine — no Core access needed
+    return PluginPermission::None;
+}
+
 QStringList Plugin::requirements() const
 {
     qCDebug(C) << __func__;

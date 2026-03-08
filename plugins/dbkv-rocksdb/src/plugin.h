@@ -42,6 +42,8 @@ public:
 
     // PluginInterface
     Q_INVOKABLE QString name() const override;
+    QString version() const override;
+    PluginPermissions requiredPermissions() const override;
     QStringList requirements() const override;
     bool init() override;
     bool deinit() override;

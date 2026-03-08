@@ -33,7 +33,18 @@ DBKVJsonPlugin::~DBKVJsonPlugin() {}
 
 QString DBKVJsonPlugin::name() const
 {
-    return "dbkv-json";
+    return QStringLiteral(PLUGIN_NAME);
+}
+
+QString DBKVJsonPlugin::version() const
+{
+    return QStringLiteral(PLUGIN_VERSION);
+}
+
+PluginPermissions DBKVJsonPlugin::requiredPermissions() const
+{
+    // Reads workdir.appdata to locate its data directory
+    return PluginPermission::SettingsRead;
 }
 
 QStringList DBKVJsonPlugin::requirements() const

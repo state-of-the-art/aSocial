@@ -28,6 +28,20 @@ QString Plugin::name() const
     return QLatin1String(PLUGIN_NAME);
 }
 
+QString Plugin::version() const
+{
+    return QStringLiteral(PLUGIN_VERSION);
+}
+
+PluginPermissions Plugin::requiredPermissions() const
+{
+    // GUI needs full user-facing access (same as CLI for now)
+    return PluginPermission::SettingsRead | PluginPermission::SettingsWrite | PluginPermission::ContainerRead
+           | PluginPermission::ContainerWrite | PluginPermission::ProfileRead | PluginPermission::ProfileWrite
+           | PluginPermission::ProfileDelete | PluginPermission::ProfileExport | PluginPermission::ProfileImport
+           | PluginPermission::DataRead | PluginPermission::DataWrite | PluginPermission::AppLifecycle;
+}
+
 QStringList Plugin::requirements() const
 {
     qCDebug(C) << __func__;

@@ -27,6 +27,7 @@
 #include "asocial/v1/group.qpb.h"
 #include "asocial/v1/message.qpb.h"
 #include "asocial/v1/profile.qpb.h"
+#include "asocial/v1/profile_param.qpb.h"
 
 class DBKVPluginInterface;
 class VFSPluginInterface;
@@ -178,6 +179,14 @@ public:
     virtual bool setSetting(const QString& key, const QVariant& value) = 0;
     /** @brief List all known system setting keys. */
     virtual QStringList listSettings() const = 0;
+
+    // ---- Profile parameters ----------------------------------------------
+
+    virtual QList<asocial::v1::ProfileParameter> listParams() const = 0;
+    virtual asocial::v1::ProfileParameter createParam(const QString& paramKey) = 0;
+    virtual asocial::v1::ProfileParameter getParam(const QString& paramKey) const = 0;
+    virtual bool storeParam(const asocial::v1::ProfileParameter& param) = 0;
+    virtual bool deleteParam(const QString& paramKey) = 0;
 
     // ---- Active persona tracking -----------------------------------------
 

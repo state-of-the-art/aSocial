@@ -15,54 +15,50 @@
 
 // Author: Rabit (@rabits)
 
-#ifndef CORE_H
-#define CORE_H
+#ifndef COREACCESSPROXY_H
+#define COREACCESSPROXY_H
 
 #include "CoreInterface.h"
-#include "plugin/DBKVPluginInterface.h"
-#include "plugin/VFS/VFSContainerPluginInterface.h"
-#include "plugin/VFSPluginInterface.h"
+#include "PluginPermissions.h"
 
 #include <QObject>
 
-class QCoreApplication;
-
 /**
- * @brief Application-wide singleton managing the plugin chain and profile lifecycle.
+ * @brief Permission-gated proxy that wraps a real CoreInterface.
  *
- * Storage pipeline:
- *   VFS-cake container (data.vfs)  ->  DBKV-rocksdb (protobuf KV store)
+ * Each plugin receives its own CoreAccessProxy instance configured with
+ * the PluginPermissions that the platform has granted.  Every method
+ * first checks the corresponding permission flag; denied calls are
+ * logged with a warning and return safe default / error values.
  *
- * The VFS container holds one encrypted "file" per encryption layer.
- * Each layer corresponds to one profile, identified by its passphrase.
- * All entity data is serialised with protobuf and stored under a
- * hierarchical key scheme for efficient prefix scans.
+ * The proxy owns no resources — it holds a non-owning pointer to the
+ * actual Core singleton whose lifetime is managed by the application.
  *
- * CRUD operations use protobuf-generated types directly.  Factory
- * methods (create*) return populated but **unsaved** objects; store*
- * methods persist them to the DBKV database and flush immediately.
+ * Temporary QByteArray buffers produced during export/import are
+ * overwritten with random bytes before deallocation (secure wipe).
  */
-class Core : public QObject, public CoreInterface
+class CoreAccessProxy : public QObject, public CoreInterface
 {
     Q_OBJECT
     Q_INTERFACES(CoreInterface)
 
 public:
-    inline static Core* I()
-    {
-        if( s_pInstance == nullptr )
-            s_pInstance = new Core();
-        return s_pInstance;
-    }
-    inline static void destroyI() { delete s_pInstance; }
+    /**
+     * @brief Construct a proxy for a specific plugin.
+     * @param real         The real CoreInterface implementation (Core singleton).
+     * @param granted      Permission flags granted to the plugin.
+     * @param pluginName   Name of the plugin (for log messages).
+     * @param parent       QObject parent for ownership.
+     */
+    explicit CoreAccessProxy(
+        CoreInterface* real, PluginPermissions granted, const QString& pluginName, QObject* parent = nullptr);
 
-    // ---- Plugin wiring (called from main) --------------------------------
-    void setDBKVPlugin(const QString& pluginName);
-    void setDBKVProfilePlugin(const QString& pluginName);
-    void setVFSPlugin(const QString& pluginName);
-    void setApp(QCoreApplication* app);
+    ~CoreAccessProxy() override;
 
-    // ---- CoreInterface implementation ------------------------------------
+    /** @brief Return the effective permission mask. */
+    PluginPermissions grantedPermissions() const { return m_granted; }
+
+    // ---- CoreInterface implementation (all gated) -------------------------
 
     // Plugin accessors
     DBKVPluginInterface* getDBKV() const override;
@@ -103,7 +99,7 @@ public:
     bool storeParam(const asocial::v1::ProfileParameter& param) override;
     bool deleteParam(const QString& paramKey) override;
 
-    // Persona
+    // Active persona
     bool setActivePersona(const QString& personaId) override;
     QString activePersonaId() const override;
 
@@ -135,7 +131,9 @@ public:
     // Message CRUD
     QList<asocial::v1::Message> listMessages(int limit = 50) const override;
     asocial::v1::Message createMessage(
-        const QString& recipientId, const QString& body, const QString& recipientType) override;
+        const QString& recipientId,
+        const QString& body,
+        const QString& recipientType = QStringLiteral("contact")) override;
     asocial::v1::Message getMessage(const QString& messageId) const override;
     bool storeMessage(const asocial::v1::Message& message) override;
     bool deleteMessage(const QString& messageId) override;
@@ -150,48 +148,24 @@ public:
     // App
     void exit() override;
 
-    // Core-only functions
-    void init();
-
 signals:
     void profileChanged() override;
 
 private:
-    explicit Core(QObject* parent = nullptr);
-    ~Core() override;
-
     /**
-     * @brief Derive the DBKV virtual-file name from the profile DBKV plugin.
-     *
-     * Convention: "<plugin-name>.dat", e.g. "dbkv-rocksdb.dat".
+     * @brief Check whether a single permission flag is granted.
+     * @param perm  The capability to test.
+     * @param method  Caller name for the log message.
+     * @return true if permitted.
      */
-    QString dbFileName() const;
-
-    /** @brief Generate a fresh UUID without braces. */
-    static QString newId();
+    bool check(PluginPermission perm, const char* method) const;
 
     /** @brief Overwrite @p buf with random bytes, then clear it. */
     static void secureWipe(QByteArray& buf);
 
-    /** @brief Flush profile DB and emit profileChanged(). */
-    void flushProfile();
-
-    static Core* s_pInstance;
-
-    QCoreApplication* m_app = nullptr;
-
-    // Plugin pointers (non-owning, managed by Plugins singleton)
-    DBKVPluginInterface* m_dbkv = nullptr;        ///< Background/relay KV (dbkv-json)
-    DBKVPluginInterface* m_dbkvProfile = nullptr; ///< Encrypted profile KV (dbkv-rocksdb)
-    VFSPluginInterface* m_vfs = nullptr;
-
-    // Runtime state
-    VFSContainerPluginInterface* m_container = nullptr; ///< Currently open VFS container
-    QIODevice* m_dbDevice = nullptr;                    ///< Virtual file backing the DBKV profile
-
-    QString m_containerPath;    ///< Filesystem path to data.vfs
-    QString m_currentProfileId; ///< UUID of the open profile
-    QString m_activePersonaId;  ///< UUID of the impersonated persona
+    CoreInterface* m_real;
+    PluginPermissions m_granted;
+    QString m_pluginName;
 };
 
-#endif // CORE_H
+#endif // COREACCESSPROXY_H

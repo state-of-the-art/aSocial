@@ -29,6 +29,17 @@ QString Plugin::name() const
     return QLatin1String(PLUGIN_NAME);
 }
 
+QString Plugin::version() const
+{
+    return QStringLiteral(PLUGIN_VERSION);
+}
+
+PluginPermissions Plugin::requiredPermissions() const
+{
+    // Comm plugin needs no Core access (manages its own network stack)
+    return PluginPermission::None;
+}
+
 QStringList Plugin::requirements() const
 {
     qCDebug(C) << __func__;

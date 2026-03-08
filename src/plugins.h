@@ -21,6 +21,19 @@
 #include <QMap>
 #include <QObject>
 
+class CoreAccessProxy;
+
+/**
+ * @brief Singleton that discovers, loads and manages aSocial plugins.
+ *
+ * During startup the plugin directories are scanned for shared libraries
+ * matching the "libasocial-plugin-*" pattern.  Each library is probed for
+ * known Qt plugin interfaces (UI, Comm, VFS, DBKV, DBSQL).
+ *
+ * On activation a per-plugin CoreAccessProxy is created whose permission
+ * mask matches the flags returned by PluginInterface::requiredPermissions().
+ * This proxy is the only access path to Core for the plugin.
+ */
 class Plugins : public QObject
 {
     Q_OBJECT
@@ -34,18 +47,42 @@ public:
     }
     inline static void destroyI() { delete s_pInstance; }
 
+    /** @brief List all discovered plugin names. */
     QList<QString> listPlugins();
+
+    /** @brief List interface IIDs that a named plugin implements. */
     QList<QLatin1String> listInterfaces(const QString& name);
 
-    // Plugin functions
+    /** @brief Return all active plugin instances for an interface IID. */
     Q_INVOKABLE QList<QObject*> getInterfacePlugins(const QString& name);
+
+    /** @brief Locate a specific active plugin by interface IID and name. */
     Q_INVOKABLE QObject* getPlugin(const QString& if_name, const QString& name);
 
-    // Settings binding functions
+    /** @brief Bind a settings key to toggling a whole plugin on/off. */
     void settingActivePlugin(const QString& key, const QString& name);
+
+    /** @brief Bind a settings key to toggling one interface of a plugin. */
     void settingActiveInterface(const QString& key, const QString& name, const QLatin1String& interface_id);
 
+    /**
+     * @brief Activate one interface of a plugin.
+     *
+     * Creates a CoreAccessProxy with the plugin's declared permissions
+     * and injects it via PluginInterface::setCore().
+     *
+     * @return true if the interface was activated.
+     */
     bool activateInterface(const QString& name, const QLatin1String& interface_id);
+
+    /**
+     * @brief Deactivate one interface of a plugin.
+     *
+     * When no interfaces remain active for this plugin instance its
+     * CoreAccessProxy is destroyed and deinit() is called.
+     *
+     * @return true if the interface was deactivated.
+     */
     bool deactivateInterface(const QString& name, const QLatin1String& interface_id);
 
 public slots:
@@ -62,6 +99,9 @@ private:
 
     QMap<QString, QMap<QLatin1String, QObject*>> m_plugins; // plugin_name : interface_id : plugin_instance
     QMap<QLatin1String, QList<QObject*>> m_plugins_active;  // interface_id : list of plugin_instance
+
+    /** @brief Per-plugin CoreAccessProxy instances (keyed by plugin name). */
+    QMap<QString, CoreAccessProxy*> m_proxies;
 
     QMap<QString, QString> m_setting_plugin_active; // setting_key : plugin_name
     QMap<QString, QPair<QString, QLatin1String>>

@@ -26,10 +26,10 @@ Kotik::Kotik(QObject* parent)
     : QObject(parent)
     , m_process(new QProcess(this))
 {
-    Q_ASSERT(m_tmpDir.isValid());
+    Q_ASSERT(m_workdir.isValid());
 
     m_process->setProgram("./aSocial-x86_64.AppImage");
-    m_process->setArguments({"--appimage-extract-and-run", "-w", m_tmpDir.path()});
+    m_process->setArguments({"--appimage-extract-and-run", "-w", m_workdir.path()});
 
     connect(m_process, &QProcess::finished, this, &Kotik::onProcessFinished);
     connect(m_process, &QProcess::errorOccurred, this, &Kotik::onProcessErrorOccurred);
@@ -61,14 +61,14 @@ bool Kotik::exitApp(int timeoutMs)
     return m_process->waitForFinished(timeoutMs);
 }
 
-QString Kotik::tmpPath() const
+QString Kotik::workdirPath() const
 {
-    return m_tmpDir.path();
+    return m_workdir.path();
 }
 
-QString Kotik::tmpFilePath(const QString& fileName) const
+QString Kotik::workdirFilePath(const QString& fileName) const
 {
-    return m_tmpDir.filePath(fileName);
+    return m_workdir.filePath(fileName);
 }
 
 int Kotik::exitCode() const

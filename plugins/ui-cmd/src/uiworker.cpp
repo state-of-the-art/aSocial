@@ -158,7 +158,8 @@ void UiWorker::buildInitCommand()
 {
     root_menu->Insert(
         "init",
-        [this](std::ostream& out, int sizeMb) {
+        {"size in GB"},
+        [this](std::ostream& out, int sizeGb) {
             if( m_core->isContainerInitialized() ) {
                 out << "WARNING: Container already exists at " << m_core->containerPath().toStdString() << "\n"
                     << "To replace it, delete the file manually first.\n";
@@ -166,12 +167,14 @@ void UiWorker::buildInitCommand()
             }
 
             QString path = m_core->getSetting("vfs.container.path").toString();
-            if( path.isEmpty() )
-                path = QStringLiteral("data.vfs");
+            if( path.isEmpty() ) {
+                out << "ERROR: Container path is not set " << path.toStdString() << "\n";
+                return;
+            }
 
-            const quint64 sizeBytes = static_cast<quint64>(sizeMb) * 1024ULL * 1024ULL;
+            const quint64 sizeBytes = static_cast<quint64>(sizeGb) * 1024ULL * 1024ULL * 1024ULL;
 
-            out << "Creating VFS container: " << path.toStdString() << " (" << sizeMb << " MB)...\n";
+            out << "Creating VFS container: " << path.toStdString() << " (" << sizeGb << " MB)...\n";
             out << "  Stage 1/3: Allocating space and filling with random data...\n";
             out.flush();
 

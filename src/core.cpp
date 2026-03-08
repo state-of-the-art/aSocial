@@ -27,7 +27,7 @@
 #include <QRandomGenerator>
 #include <QUuid>
 
-#include <QtProtobuf/QProtobufSerializer>
+#include <QtProtobuf/QProtobufJsonSerializer>
 
 #include "asocial/v1/contact.qpb.h"
 #include "asocial/v1/event.qpb.h"
@@ -58,6 +58,10 @@ static const QString MESSAGE_PFX = QStringLiteral("m/");
 static const QString EVENT_PFX = QStringLiteral("e/");
 static const QString PARAM_PFX = QStringLiteral("pp/");
 
+inline QString paramKey(const QString& paramKey)
+{
+    return PERSONA_PFX + paramKey;
+}
 inline QString personaKey(const QString& uid)
 {
     return PERSONA_PFX + uid;
@@ -133,81 +137,6 @@ QString timestampToIso(const google::protobuf::Timestamp& ts)
 qint64 timestampToMsEpoch(const google::protobuf::Timestamp& ts)
 {
     return ts.seconds() * 1000 + ts.nanos() / 1000000;
-}
-
-// ---- Export helpers: proto -> QVariantMap (used only in export/import) ------
-
-QVariantMap profileToMap(const asocial::v1::Profile& p)
-{
-    return {
-        {"id", p.uid()},
-        {"display_name", p.displayName()},
-        {"bio", p.bio()},
-        {"avatar", p.avatar().toBase64()},
-        {"created_at", timestampToIso(p.createdAt())},
-        {"updated_at", timestampToIso(p.updatedAt())}};
-}
-
-QVariantMap personaToMap(const asocial::v1::Persona& p)
-{
-    return {
-        {"id", p.uid()},
-        {"profile_id", p.profileUid()},
-        {"display_name", p.displayName()},
-        {"bio", p.bio()},
-        {"is_default", p.isDefault()},
-        {"created_at", timestampToIso(p.createdAt())},
-        {"updated_at", timestampToIso(p.updatedAt())}};
-}
-
-QVariantMap contactToMap(const asocial::v1::Contact& c)
-{
-    return {
-        {"id", c.uid()},
-        {"persona_id", c.personaUid()},
-        {"display_name", c.displayName()},
-        {"public_key", c.publicKey().toHex()},
-        {"trust_level", static_cast<int>(c.trustLevel())},
-        {"notes", c.notes()},
-        {"created_at", timestampToIso(c.createdAt())},
-        {"updated_at", timestampToIso(c.updatedAt())}};
-}
-
-QVariantMap groupToMap(const asocial::v1::Group& g)
-{
-    return {
-        {"id", g.uid()},
-        {"persona_id", g.personaUid()},
-        {"name", g.name()},
-        {"description", g.description()},
-        {"created_at", timestampToIso(g.createdAt())},
-        {"updated_at", timestampToIso(g.updatedAt())}};
-}
-
-QVariantMap messageToMap(const asocial::v1::Message& m)
-{
-    return {
-        {"id", m.uid()},
-        {"persona_id", m.personaUid()},
-        {"thread_id", m.threadUid()},
-        {"sender_contact_id", m.senderContactUid()},
-        {"recipient_type", m.recipientType()},
-        {"recipient_id", m.recipientUid()},
-        {"body", m.body()},
-        {"created_at", timestampToIso(m.createdAt())}};
-}
-
-QVariantMap eventToMap(const asocial::v1::Event& e)
-{
-    return {
-        {"id", e.uid()},
-        {"persona_id", e.personaUid()},
-        {"title", e.title()},
-        {"description", e.description()},
-        {"event_date", e.hasStarted() ? timestampToIso(e.started()) : QString()},
-        {"location", e.location()},
-        {"created_at", timestampToIso(e.createdAt())},
-        {"updated_at", timestampToIso(e.updatedAt())}};
 }
 
 } // namespace
@@ -657,6 +586,76 @@ QString Core::currentPersonaName() const
     return {};
 }
 
+QList<asocial::v1::ProfileParameter> Core::listParams() const
+{
+    QList<asocial::v1::ProfileParameter> result;
+    if( !isProfileOpen() )
+        return result;
+
+    QStringList keys = m_dbkvProfile->listObjects(KV::PARAM_PFX);
+    for( const QString& key : keys ) {
+        asocial::v1::ProfileParameter pp;
+        if( !m_dbkvProfile->retrieveObject(key, pp) )
+            continue;
+        result.append(pp);
+    }
+
+    std::sort(
+        result.begin(),
+        result.end(),
+        [](const asocial::v1::ProfileParameter& a, const asocial::v1::ProfileParameter& b) {
+            return a.key() < b.key();
+        });
+
+    return result;
+}
+
+asocial::v1::ProfileParameter Core::createParam(const QString& paramKey)
+{
+    if( !isProfileOpen() )
+        return {};
+
+    asocial::v1::ProfileParameter pp;
+    pp.setKey(paramKey);
+
+    return pp;
+}
+
+asocial::v1::ProfileParameter Core::getParam(const QString& paramKey) const
+{
+    if( !isProfileOpen() )
+        return {};
+
+    asocial::v1::ProfileParameter pp;
+    if( !m_dbkvProfile->retrieveObject(KV::paramKey(paramKey), pp) )
+        return {};
+
+    return pp;
+}
+
+bool Core::storeParam(const asocial::v1::ProfileParameter& param)
+{
+    if( !isProfileOpen() || param.key().isEmpty() )
+        return false;
+
+    auto pp = param;
+    bool ok = m_dbkvProfile->storeObject(KV::personaKey(pp.key()), pp);
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
+bool Core::deleteParam(const QString& paramKey)
+{
+    if( !isProfileOpen() )
+        return false;
+
+    bool ok = m_dbkvProfile->deleteObject(KV::paramKey(paramKey));
+    if( ok )
+        flushProfile();
+    return ok;
+}
+
 // ---------------------------------------------------------------------------
 // Export / Import
 // ---------------------------------------------------------------------------
@@ -666,48 +665,19 @@ QByteArray Core::exportProfile(const QString& /*encryptionPassword*/)
     if( !isProfileOpen() )
         return {};
 
-    QVariantMap data;
+    auto profile = getProfile();
+    auto profileParams = listParams();
 
-    data["profile"] = profileToMap(getProfile());
-
-    // Personas
-    QVariantList personaList;
-    for( const auto& p : listPersonas() )
-        personaList.append(personaToMap(p));
-    data["personas"] = personaList;
-
-    // Contacts, Groups, Messages, Events for each persona
-    QVariantList allContacts, allGroups, allMessages, allEvents;
-    const QString savedPersona = m_activePersonaId;
-
-    QStringList personaKeys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
-    for( const QString& key : personaKeys ) {
-        asocial::v1::Persona persona;
-        if( !m_dbkvProfile->retrieveObject(key, persona) )
-            continue;
-
-        const_cast<Core*>(this)->m_activePersonaId = persona.uid();
-
-        for( const auto& c : listContacts() )
-            allContacts.append(contactToMap(c));
-        for( const auto& g : listGroups() )
-            allGroups.append(groupToMap(g));
-        for( const auto& m : listMessages(10000) )
-            allMessages.append(messageToMap(m));
-        for( const auto& e : listEvents() )
-            allEvents.append(eventToMap(e));
+    auto serializer = new QProtobufJsonSerializer();
+    QByteArray result = profile.serialize(serializer);
+    for( auto param : profileParams ) {
+        result.append('\n');
+        result.append(param.serialize(serializer));
     }
 
-    const_cast<Core*>(this)->m_activePersonaId = savedPersona;
+    // TODO: Include profile parameters and everything needed to copy profile minimums to another device
+    // The idea is to init another devices with the same profile to sync them
 
-    data["contacts"] = allContacts;
-    data["groups"] = allGroups;
-    data["messages"] = allMessages;
-    data["events"] = allEvents;
-
-    QByteArray json = QJsonDocument::fromVariant(data).toJson(QJsonDocument::Compact);
-    QByteArray result = json.toBase64();
-    secureWipe(json);
     return result;
 }
 
@@ -736,97 +706,6 @@ bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPass
         auto prof = getProfile();
         prof.setBio(profMap["bio"].toString());
         storeProfile(prof);
-    }
-
-    // Import personas
-    QVariantList personas = root["personas"].toList();
-    QMap<QString, QString> personaIdMap;
-
-    // Map first imported persona to the auto-created default
-    if( !personas.isEmpty() ) {
-        QString oldDefault = personas.first().toMap().value("id").toString();
-        personaIdMap[oldDefault] = m_activePersonaId;
-
-        QVariantMap pm = personas.first().toMap();
-        auto defaultPersona = getPersona(m_activePersonaId);
-        if( pm.contains("display_name") )
-            defaultPersona.setDisplayName(pm["display_name"].toString());
-        if( pm.contains("bio") )
-            defaultPersona.setBio(pm["bio"].toString());
-        storePersona(defaultPersona);
-    }
-
-    for( int i = 1; i < personas.size(); ++i ) {
-        QVariantMap pm = personas[i].toMap();
-        QString oldId = pm.value("id").toString();
-        auto persona = createPersona(pm.value("display_name").toString());
-        if( !persona.uid().isEmpty() && storePersona(persona) )
-            personaIdMap[oldId] = persona.uid();
-    }
-
-    // Import contacts
-    QVariantList contacts = root["contacts"].toList();
-    QMap<QString, QString> contactIdMap;
-    for( const QVariant& v : contacts ) {
-        QVariantMap cm = v.toMap();
-        QString oldId = cm.value("id").toString();
-        QString personaId = personaIdMap.value(cm.value("persona_id").toString(), m_activePersonaId);
-        m_activePersonaId = personaId;
-        auto contact = createContact(cm.value("display_name").toString());
-        if( !contact.uid().isEmpty() ) {
-            if( cm.contains("notes") )
-                contact.setNotes(cm["notes"].toString());
-            if( cm.contains("trust_level") )
-                contact.setTrustLevel(cm["trust_level"].toInt());
-            if( storeContact(contact) )
-                contactIdMap[oldId] = contact.uid();
-        }
-    }
-
-    // Import groups
-    QVariantList groups = root["groups"].toList();
-    for( const QVariant& v : groups ) {
-        QVariantMap gm = v.toMap();
-        QString personaId = personaIdMap.value(gm.value("persona_id").toString(), m_activePersonaId);
-        m_activePersonaId = personaId;
-        auto group = createGroup(gm.value("name").toString());
-        if( !group.uid().isEmpty() )
-            storeGroup(group);
-    }
-
-    // Import messages
-    QVariantList messages = root["messages"].toList();
-    for( const QVariant& v : messages ) {
-        QVariantMap mm = v.toMap();
-        QString personaId = personaIdMap.value(mm.value("persona_id").toString(), m_activePersonaId);
-        m_activePersonaId = personaId;
-        auto msg = createMessage(
-            mm.value("recipient_id").toString(),
-            mm.value("body").toString(),
-            mm.value("recipient_type", "contact").toString());
-        if( !msg.uid().isEmpty() )
-            storeMessage(msg);
-    }
-
-    // Import events
-    QVariantList events = root["events"].toList();
-    for( const QVariant& v : events ) {
-        QVariantMap em = v.toMap();
-        QString personaId = personaIdMap.value(em.value("persona_id").toString(), m_activePersonaId);
-        m_activePersonaId = personaId;
-        auto event = createEvent(em.value("title").toString(), em.value("event_date").toString());
-        if( !event.uid().isEmpty() )
-            storeEvent(event);
-    }
-
-    // Restore the default persona
-    QStringList pKeys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
-    for( const QString& key : pKeys ) {
-        asocial::v1::Persona p;
-        if( m_dbkvProfile->retrieveObject(key, p) && p.isDefault() ) {
-            m_activePersonaId = p.uid();
-            break;
-        }
     }
 
     flushProfile();
@@ -1404,6 +1283,15 @@ void Core::exit()
 {
     closeProfile();
     m_app->exit(0);
+}
+
+void Core::init()
+{
+    // Open container if it already exists
+    QString container_path = Settings::I()->setting("vfs.container.path").toString();
+    if( QFile::exists(container_path) ) {
+        createContainer(container_path, 0);
+    }
 }
 
 // ---------------------------------------------------------------------------

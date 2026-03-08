@@ -33,6 +33,7 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
         QVERIFY(!k->contains("no supported interfaces found for plugin"));
+        QVERIFY(k->contains("Create Settings from file \"" + k->workdirPath()));
 
         k->write("help");
         QVERIFY(k->waitForLog("Commands available:", 500));
@@ -72,7 +73,8 @@ private slots:
         k->write("settings list");
         QVERIFY(k->waitForLog("Settings", 500));
         QVERIFY(k->waitForLog("vfs.container.path", 500));
-        QVERIFY(k->waitForLog("vfs.plugin", 500));
+        QVERIFY(k->waitForLog("workdir.appdata = " + k->workdirPath(), 500));
+        QVERIFY(k->waitForLog("workdir.applocaldata = " + k->workdirPath(), 500));
 
         k->clear();
         k->write("settings get vfs.plugin");
@@ -99,11 +101,8 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
 
-        k->write("settings set vfs.container.path " + k->tmpFilePath("test.vfs"));
-        QVERIFY(k->waitForLog("OK:", 500));
-
         k->clear();
-        k->write("init 2");
+        k->write("init 1");
         QVERIFY(k->waitForLog("Container initialized", 15000));
 
         k->clear();
@@ -130,6 +129,19 @@ private slots:
         QVERIFY(k->noErrorLogs());
         QVERIFY(k->exitApp());
         QCOMPARE(k->exitCode(), 0);
+
+        // Reopening the existing profile
+        Kotik* k2 = new Kotik(this);
+        QVERIFY(k2->waitForLog("main>", 5000));
+
+        QVERIFY(k2->contains("Container opened: \"" + workdirPathFile("data.vfs")));
+
+        k->write("profile open testpass");
+        QVERIFY(k2->waitForLog("Profile opened: TestUser", 5000));
+
+        QVERIFY(k2->noErrorLogs());
+        QVERIFY(k2->exitApp());
+        QCOMPARE(k2->exitCode(), 0);
     }
 
     /**
@@ -140,9 +152,7 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
 
-        k->write("settings set vfs.container.path " + k->tmpFilePath("c.vfs"));
-        QVERIFY(k->waitForLog("OK:", 500));
-        k->write("init 2");
+        k->write("init 1");
         QVERIFY(k->waitForLog("Container initialized", 15000));
         k->write("profile create pw Alice");
         QVERIFY(k->waitForLog("Profile created", 15000));
@@ -177,9 +187,7 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
 
-        k->write("settings set vfs.container.path " + k->tmpFilePath("gm.vfs"));
-        QVERIFY(k->waitForLog("OK:", 500));
-        k->write("init 2");
+        k->write("init 1");
         QVERIFY(k->waitForLog("Container initialized", 15000));
         k->write("profile create pw2 GroupTester");
         QVERIFY(k->waitForLog("Profile created", 15000));
@@ -214,9 +222,7 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
 
-        k->write("settings set vfs.container.path " + k->tmpFilePath("pe.vfs"));
-        QVERIFY(k->waitForLog("OK:", 500));
-        k->write("init 2");
+        k->write("init 1");
         QVERIFY(k->waitForLog("Container initialized", 15000));
         k->write("profile create pw3 PersonaTester");
         QVERIFY(k->waitForLog("Profile created", 15000));
@@ -257,9 +263,7 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
 
-        k->write("settings set vfs.container.path " + k->tmpFilePath("ei.vfs"));
-        QVERIFY(k->waitForLog("OK:", 500));
-        k->write("init 2");
+        k->write("init 1");
         QVERIFY(k->waitForLog("Container initialized", 15000));
         k->write("profile create pw4 Exporter");
         QVERIFY(k->waitForLog("Profile created", 15000));
@@ -284,9 +288,7 @@ private slots:
         Kotik* k = new Kotik(this);
         QVERIFY(k->waitForLog("main>", 5000));
 
-        k->write("settings set vfs.container.path " + k->tmpFilePath("del.vfs"));
-        QVERIFY(k->waitForLog("OK:", 500));
-        k->write("init 2");
+        k->write("init 1");
         QVERIFY(k->waitForLog("Container initialized", 15000));
         k->write("profile create pw5 DeleteMe");
         QVERIFY(k->waitForLog("Profile created", 15000));

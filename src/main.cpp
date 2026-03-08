@@ -73,14 +73,17 @@ int main(int argc, char* argv[])
         const QString wd = parser.value(workingDirectoryOption);
         QString conf_path = QDir(wd).absolutePath() + QDir::separator() + "settings.ini";
         Settings::setConfigFile(conf_path);
-        Settings::I()->setDefault("workdir.appdir", wd);
-        Settings::I()->setDefault("workdir.localdir", wd);
+        Settings::I()->setDefault("workdir.appdata", wd);
+        Settings::I()->setDefault("workdir.applocaldata", wd);
     } else {
         Settings::I();
         Settings::I()->setDefault("workdir.appdata", QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
         Settings::I()
             ->setDefault("workdir.applocaldata", QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
     }
+
+    Settings::I()->setDefault(
+        "vfs.container.path", Settings::I()->setting("workdir.appdata").toString() + QDir::separator() + "data.vfs");
 
     qCInfo(Cm, "Init plugins...");
     Plugins::I();
@@ -89,13 +92,13 @@ int main(int argc, char* argv[])
     Settings::I()->setDefault("vfs.plugin", "vfs-cake");
     Settings::I()->setDefault("dbkv.plugin", "dbkv-json");
     Settings::I()->setDefault("dbkv.profile.plugin", "dbkv-rocksdb");
-    Settings::I()->setDefault("vfs.container.path", "data.vfs");
 
     qCInfo(Cm, "Init core...");
     Core::I()->setApp(app.data());
     Core::I()->setDBKVPlugin(Settings::I()->setting("dbkv.plugin").toString());
     Core::I()->setDBKVProfilePlugin(Settings::I()->setting("dbkv.profile.plugin").toString());
     Core::I()->setVFSPlugin(Settings::I()->setting("vfs.plugin").toString());
+    Core::I()->init();
 
     if( parser.isSet(noUiOption) ) {
         qCDebug(Cm, "aSocial - console mode");

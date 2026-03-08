@@ -8,7 +8,7 @@ syntax = "proto3";
 package asocial.v1;
 
 // Generic key/value pair inside the profile database.
-message ProfileParameters
+message ProfileParameter
 {
     string key = 1;   // Dotted path, e.g. "ui.theme"
     string value = 2; // JSON-encoded value

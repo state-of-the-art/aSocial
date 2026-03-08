@@ -19,13 +19,22 @@
 #define PLUGININTERFACE_H
 
 #include "CoreInterface.h"
+#include "PluginPermissions.h"
 #include <QStringList>
 #include <QtPlugin>
 
 #define PluginInterface_iid "io.stateoftheart.asocial.PluginInterface"
 
 /**
- * Basic interface for plugins
+ * @brief Base interface that every aSocial plugin must implement.
+ *
+ * Provides identity (name, version), lifecycle hooks (init / deinit /
+ * configure), dependency declaration, and the granular permission system
+ * that controls which Core capabilities a plugin may access.
+ *
+ * The platform calls setCore() with a CoreAccessProxy whose permission
+ * mask matches the flags returned by requiredPermissions().  Any method
+ * call outside the granted set is denied at runtime and logged.
  */
 class PluginInterface
 {
@@ -33,45 +42,80 @@ public:
     virtual ~PluginInterface(){};
 
     /**
-     * @brief Return plugin type
+     * @brief Return the Qt interface identifier for the base plugin type.
+     * @return Compile-time IID string.
      */
     static QLatin1String type() { return QLatin1String(PluginInterface_iid); }
 
     /**
-     * @brief Plugin identify name
+     * @brief Human-readable plugin name (e.g. "ui-cmd", "dbkv-rocksdb").
+     *
+     * Typically backed by the PLUGIN_NAME compile definition.
      */
     Q_INVOKABLE virtual QString name() const = 0;
 
     /**
-     * @brief List of the plugins required by the plugin
+     * @brief Semantic version string of this plugin build.
+     *
+     * Typically backed by the PLUGIN_VERSION compile definition set in
+     * plugins/plugin.cmake from the plugin's project(VERSION ...) call.
+     *
+     * @return Version string such as "0.1.0".
+     */
+    virtual QString version() const = 0;
+
+    /**
+     * @brief Declare the Core capabilities this plugin requires.
+     *
+     * The platform inspects these flags before activation and constructs
+     * a CoreAccessProxy that permits only the declared operations.
+     * In the future a UI will let the user approve or deny each flag.
+     *
+     * @return Bitwise OR of PluginPermission flags.
+     */
+    virtual PluginPermissions requiredPermissions() const = 0;
+
+    /**
+     * @brief List of plugin names this plugin depends on.
+     * @return Names that must be loaded before this plugin can initialise.
      */
     virtual QStringList requirements() const = 0;
 
     /**
-     * @brief Executed during plugin activation
-     * Warning: will be executed for each interface
+     * @brief Executed during plugin activation.
+     *
+     * May be called once per interface the plugin implements.
+     *
+     * @return true on success.
      */
     virtual bool init() = 0;
 
     /**
-     * @brief Passes the Core object to interact with the platform
-     * Called during plugin initialization
-     * @param core - ref to the Core object
+     * @brief Inject the Core access proxy for this plugin.
+     *
+     * Called by the platform during activation.  The supplied pointer is
+     * a permission-gated proxy — only operations matching the plugin's
+     * requiredPermissions() are allowed.
+     *
+     * @param core  Permission-gated CoreInterface proxy (non-owning).
      */
     void setCore(CoreInterface* core) { m_core = core; };
 
     /**
-     * @brief Executed during plugin deactivation
+     * @brief Executed during plugin deactivation.
+     * @return true on success.
      */
     virtual bool deinit() = 0;
 
     /**
-     * @brief Executed when all the available plugins are initialized
+     * @brief Executed when all available plugins are initialized.
+     * @return true on success.
      */
     virtual bool configure() = 0;
 
     /**
-     * @brief Shows the plugin was initialized or not
+     * @brief Query whether this plugin has been initialised.
+     * @return true if init() completed successfully.
      */
     bool isInitialized() { return m_initialized; }
 
@@ -82,12 +126,13 @@ signals:
 
 protected:
     /**
-     * @brief Used by plugin to set the init state
-     * @param value
+     * @brief Set the initialisation flag (called from init/deinit).
+     * @param value  New init state.
      */
     void setInitialized(bool value) { m_initialized = value; }
 
-    CoreInterface* m_core;
+    /** @brief Permission-gated proxy to Core functionality. */
+    CoreInterface* m_core = nullptr;
 
 private:
     bool m_initialized = false;

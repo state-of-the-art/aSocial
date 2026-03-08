@@ -42,8 +42,8 @@ public:
 
     bool exitApp(int timeoutMs = 3000);
 
-    QString tmpPath() const;
-    QString tmpFilePath(const QString& fileName) const;
+    QString workdirPath() const;
+    QString workdirFilePath(const QString& fileName) const;
 
     int exitCode() const;
 
@@ -72,7 +72,7 @@ private slots:
 private:
     void processData(const QByteArray& data, QString& partialBuffer, bool isStderr);
 
-    QTemporaryDir m_tmpDir;
+    QTemporaryDir m_workdir;
     QProcess* m_process;
     QStringList m_lines;
     QStringList m_stderrLines;

@@ -16,8 +16,8 @@
 // Author: Rabit (@rabits)
 
 #include "plugins.h"
+#include "CoreAccessProxy.h"
 #include "settings.h"
-//#include "application.h"
 
 #include <QCoreApplication>
 #include <QLoggingCategory>
@@ -28,6 +28,7 @@ Q_LOGGING_CATEGORY(plugins, "Plugins")
 
 #include <QPluginLoader>
 
+#include "PluginInterface.h"
 #include "core.h"
 #include "plugin/CommPluginInterface.h"
 #include "plugin/DBKVPluginInterface.h"
@@ -100,7 +101,6 @@ void Plugins::settingActiveInterface(const QString& key, const QString& name, co
 
 bool Plugins::activateInterface(const QString& name, const QLatin1String& interface_id)
 {
-    // Don't activate interface if the plugin is not enabled
     if( !Settings::I()->setting(m_setting_plugin_active.key(name)).toBool() )
         return false;
     QObject* plugin = m_plugins[name][interface_id];
@@ -110,7 +110,17 @@ bool Plugins::activateInterface(const QString& name, const QLatin1String& interf
                            << plugin;
         return false;
     }
-    plugin_if->setCore(Core::I());
+
+    // Create a per-plugin CoreAccessProxy if one does not yet exist
+    if( !m_proxies.contains(name) ) {
+        PluginPermissions perms = plugin_if->requiredPermissions();
+        qCInfo(plugins) << "Granting permissions to" << name << "v" + plugin_if->version() << ":"
+                        << permissionNames(perms).join(", ");
+        auto* proxy = new CoreAccessProxy(Core::I(), perms, name, this);
+        m_proxies.insert(name, proxy);
+    }
+
+    plugin_if->setCore(m_proxies.value(name));
     plugin_if->init();
     if( !m_plugins_active[interface_id].contains(plugin) ) {
         m_plugins_active[interface_id].append(plugin);
@@ -138,6 +148,12 @@ bool Plugins::deactivateInterface(const QString& name, const QLatin1String& inte
             ++it;
         }
         plugin_if->deinit();
+
+        // Destroy the permission proxy once all interfaces are deactivated
+        if( m_proxies.contains(name) ) {
+            delete m_proxies.take(name);
+            qCDebug(plugins) << "Destroyed CoreAccessProxy for" << name;
+        }
         return true;
     }
     return false;
@@ -208,7 +224,16 @@ void Plugins::refreshPluginsList()
             connect(plugin, SIGNAL(appWarning(QString)), Application::I(), SLOT(warning(QString)));
             connect(plugin, SIGNAL(appError(QString)), Application::I(), SLOT(error(QString)));*/
 
-            qCDebug(plugins) << "  loading plugin:" << lib_name;
+            PluginInterface* base_if = qobject_cast<PluginInterface*>(plugin);
+            if( base_if ) {
+                qCInfo(plugins) << "  loading plugin:" << base_if->name() << "v" + base_if->version() << "from"
+                                << lib_name;
+                qCDebug(plugins) << "    requested permissions:"
+                                 << permissionNames(base_if->requiredPermissions()).join(", ");
+            } else {
+                qCDebug(plugins) << "  loading plugin:" << lib_name;
+            }
+
             bool loaded = false;
             loaded = addPlugin<UiPluginInterface>(qobject_cast<UiPluginInterface*>(plugin), plugin);
             loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface*>(plugin), plugin) || loaded;

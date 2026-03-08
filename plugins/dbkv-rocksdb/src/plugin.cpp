@@ -37,7 +37,18 @@ DBKVRocksdbPlugin::~DBKVRocksdbPlugin()
 
 QString DBKVRocksdbPlugin::name() const
 {
-    return QStringLiteral("dbkv-rocksdb");
+    return QStringLiteral(PLUGIN_NAME);
+}
+
+QString DBKVRocksdbPlugin::version() const
+{
+    return QStringLiteral(PLUGIN_VERSION);
+}
+
+PluginPermissions DBKVRocksdbPlugin::requiredPermissions() const
+{
+    // Pure storage engine — no Core access needed
+    return PluginPermission::None;
 }
 
 QStringList DBKVRocksdbPlugin::requirements() const
