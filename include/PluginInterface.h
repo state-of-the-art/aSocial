@@ -19,6 +19,7 @@
 #define PLUGININTERFACE_H
 
 #include "CoreInterface.h"
+#include "Log.h"
 #include "PluginPermissions.h"
 #include <QStringList>
 #include <QtPlugin>
@@ -33,7 +34,7 @@
  * that controls which Core capabilities a plugin may access.
  *
  * The platform calls setCore() with a CoreAccessProxy whose permission
- * mask matches the flags returned by requiredPermissions().  Any method
+ * mask matches the flags returned by requiredPermissions(). Any method
  * call outside the granted set is denied at runtime and logged.
  */
 class PluginInterface
@@ -91,9 +92,24 @@ public:
     virtual bool init() = 0;
 
     /**
+     * @brief Inject the Core logger for this plugin.
+     *
+     * Called by the platform during activation and provides easy
+     * interface to centralize logs and process in common UI plugin sink.
+     *
+     * @param name       Name of the logger to show where logs are coming from.
+     * @param verbosity  How verbose should be output of the specific plugin.
+     * @param parent     Parent logger which stores redirection to logs sink.
+     */
+    virtual void setLog(const QString& name, LogLevel verbosity, Log* parent)
+    {
+        LOGGER = new Log(name, verbosity, parent);
+    };
+
+    /**
      * @brief Inject the Core access proxy for this plugin.
      *
-     * Called by the platform during activation.  The supplied pointer is
+     * Called by the platform during activation. The supplied pointer is
      * a permission-gated proxy — only operations matching the plugin's
      * requiredPermissions() are allowed.
      *

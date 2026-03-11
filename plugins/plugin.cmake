@@ -31,7 +31,7 @@ target_include_directories(${PROJECT_NAME}_impl PUBLIC "${CMAKE_CURRENT_LIST_DIR
 target_compile_definitions(${PROJECT_NAME}_impl PRIVATE PLUGIN_NAME="${PROJECT_NAME}")
 target_compile_definitions(${PROJECT_NAME}_impl PRIVATE PLUGIN_VERSION="${PROJECT_VERSION}")
 find_package(Qt6 REQUIRED COMPONENTS Protobuf ProtobufWellKnownTypes)
-target_link_libraries(${PROJECT_NAME}_impl PUBLIC Qt::Core Qt::Protobuf Qt::ProtobufWellKnownTypes asocial_proto)
+target_link_libraries(${PROJECT_NAME}_impl PUBLIC Qt::Core asocial_proto asocial_log)
 
 # Build plugin
 qt_add_plugin(${PROJECT_NAME} SHARED CLASS_NAME Plugin)

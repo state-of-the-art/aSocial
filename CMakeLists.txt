@@ -41,7 +41,7 @@ file(GLOB_RECURSE Execution_H RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.h" "
 file(GLOB_RECURSE Execution_TS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "i18n/*.ts")
 
 qt_add_executable(${PROJECT_NAME} ${Execution_CPP} ${Execution_H})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core Qt::Protobuf Qt::ProtobufWellKnownTypes ${PROJECT_NAME}_proto)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core asocial_proto asocial_log)
 target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${Execution_TS})

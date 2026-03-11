@@ -17,15 +17,13 @@
 
 #include "plugin.h"
 
+#include "Log.h"
 #include <QByteArray>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
-#include <QLoggingCategory>
 #include <QRandomGenerator>
 #include <QtProtobuf/QProtobufSerializer>
-
-Q_LOGGING_CATEGORY(Djp, "DBKVJsonPlugin")
 
 DBKVJsonPlugin::DBKVJsonPlugin() {}
 
@@ -54,15 +52,7 @@ QStringList DBKVJsonPlugin::requirements() const
 
 bool DBKVJsonPlugin::init()
 {
-    qCDebug(Djp) << "Initializing plugin";
-
-    const QString defaultPath = m_core->getSetting("workdir.appdata").toString() + "/" + name();
-    m_dataDir = QDir(defaultPath);
-
-    if( !openDatabase(defaultPath) ) {
-        setInitialized(false);
-        return false;
-    }
+    LOG_D() << "Initializing plugin";
 
     setInitialized(true);
     return true;
@@ -70,7 +60,7 @@ bool DBKVJsonPlugin::init()
 
 bool DBKVJsonPlugin::deinit()
 {
-    qCDebug(Djp) << "Deinitializing plugin";
+    LOG_D() << "Deinitializing plugin";
     closeDatabase();
     setInitialized(false);
     return true;
@@ -78,7 +68,7 @@ bool DBKVJsonPlugin::deinit()
 
 bool DBKVJsonPlugin::configure()
 {
-    qCDebug(Djp) << "Configuring plugin";
+    LOG_D() << "Configuring plugin";
     return true;
 }
 
@@ -95,20 +85,19 @@ bool DBKVJsonPlugin::openDatabase(const QString& path)
 
     if( !m_dataDir.exists() ) {
         if( !m_dataDir.mkpath(".") ) {
-            qCWarning(Djp) << "Failed to create data directory:" << m_dataDir.absolutePath();
+            LOG_W() << "Failed to create data directory:" << m_dataDir.absolutePath();
             return false;
         }
     }
 
     m_dbOpen = true;
-    qCDebug(Djp) << "Database opened at:" << m_dataDir.absolutePath();
+    LOG_D() << "Database opened at:" << m_dataDir.absolutePath();
     return true;
 }
 
 bool DBKVJsonPlugin::openDatabase(QIODevice* /*device*/)
 {
-    qCWarning(Djp) << "QIODevice mode is not supported by the JSON plugin."
-                   << "Use dbkv-rocksdb for VFS-backed storage.";
+    LOG_W() << "QIODevice mode is not supported by the JSON plugin." << "Use dbkv-rocksdb for VFS-backed storage.";
     return false;
 }
 
@@ -125,7 +114,7 @@ void DBKVJsonPlugin::flushDatabase()
 void DBKVJsonPlugin::closeDatabase()
 {
     m_dbOpen = false;
-    qCDebug(Djp) << "Database closed";
+    LOG_D() << "Database closed";
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +124,7 @@ void DBKVJsonPlugin::closeDatabase()
 QStringList DBKVJsonPlugin::listObjects(const QString& prefix)
 {
     if( !m_dbOpen ) {
-        qCWarning(Djp) << "Database not open";
+        LOG_W() << "Database not open";
         return {};
     }
 
@@ -159,14 +148,14 @@ QStringList DBKVJsonPlugin::listObjects(const QString& prefix)
 bool DBKVJsonPlugin::storeObject(const QString& key, const QProtobufMessage& message)
 {
     if( !m_dbOpen ) {
-        qCWarning(Djp) << "Database not open";
+        LOG_W() << "Database not open";
         return false;
     }
 
     QProtobufSerializer serializer;
     QByteArray data = message.serialize(&serializer);
     if( data.isEmpty() && serializer.lastError() != QAbstractProtobufSerializer::Error::None ) {
-        qCWarning(Djp) << "Protobuf serialisation failed for key:" << key;
+        LOG_W() << "Protobuf serialisation failed for key:" << key;
         return false;
     }
 
@@ -179,7 +168,7 @@ bool DBKVJsonPlugin::storeObject(const QString& key, const QProtobufMessage& mes
 
     QFile file(filePath);
     if( !file.open(QIODevice::WriteOnly) ) {
-        qCWarning(Djp) << "Failed to open file for writing:" << filePath;
+        LOG_W() << "Failed to open file for writing:" << filePath;
         secureWipe(data);
         return false;
     }
@@ -193,14 +182,14 @@ bool DBKVJsonPlugin::storeObject(const QString& key, const QProtobufMessage& mes
 bool DBKVJsonPlugin::retrieveObject(const QString& key, QProtobufMessage& message)
 {
     if( !m_dbOpen ) {
-        qCWarning(Djp) << "Database not open";
+        LOG_W() << "Database not open";
         return false;
     }
 
     QString filePath = getObjectFilePath(key);
     QFile file(filePath);
     if( !file.open(QIODevice::ReadOnly) ) {
-        qCWarning(Djp) << "Failed to open file for reading:" << filePath;
+        LOG_W() << "Failed to open file for reading:" << filePath;
         return false;
     }
 
@@ -212,7 +201,7 @@ bool DBKVJsonPlugin::retrieveObject(const QString& key, QProtobufMessage& messag
     secureWipe(data);
 
     if( !ok )
-        qCWarning(Djp) << "Protobuf deserialisation failed for key:" << key;
+        LOG_W() << "Protobuf deserialisation failed for key:" << key;
 
     return ok;
 }
@@ -229,7 +218,7 @@ bool DBKVJsonPlugin::objectExists(const QString& key)
 bool DBKVJsonPlugin::deleteObject(const QString& key)
 {
     if( !m_dbOpen ) {
-        qCWarning(Djp) << "Database not open";
+        LOG_W() << "Database not open";
         return false;
     }
 

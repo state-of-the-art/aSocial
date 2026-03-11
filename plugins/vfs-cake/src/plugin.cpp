@@ -17,11 +17,9 @@
 
 #include "plugin.h"
 #include "EncryptedVFSContainer.h"
+#include "Log.h"
 
 #include <sodium.h>
-#include <QLoggingCategory>
-
-Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
 Plugin* Plugin::s_pInstance = nullptr;
 
@@ -46,7 +44,7 @@ PluginPermissions Plugin::requiredPermissions() const
 
 QStringList Plugin::requirements() const
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return {};
 }
 
@@ -55,16 +53,16 @@ bool Plugin::init()
     if( isInitialized() )
         return true;
 
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     Plugin::s_pInstance = this;
 
     if( sodium_init() < 0 ) {
-        qCCritical(C) << "libsodium initialization failed";
+        LOG_C() << "libsodium initialization failed";
         emit appError(name() + QLatin1String(": libsodium init failed"));
         return false;
     }
 
-    qCDebug(C) << "init() done";
+    LOG_D() << "init() done";
     setInitialized(true);
     emit appNotice(name().append(QLatin1String(" initialized")));
     return true;
@@ -74,18 +72,18 @@ bool Plugin::deinit()
 {
     if( !isInitialized() )
         return true;
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     Plugin::s_pInstance = nullptr;
     emit appNotice(name().append(QLatin1String(" deinitialized")));
-    qCDebug(C) << "deinit() done";
+    LOG_D() << "deinit() done";
     setInitialized(false);
     return true;
 }
 
 bool Plugin::configure()
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return true;
 }
 

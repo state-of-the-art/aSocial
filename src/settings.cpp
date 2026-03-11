@@ -17,9 +17,7 @@
 
 #include "settings.h"
 
-#include <QLoggingCategory>
-
-Q_LOGGING_CATEGORY(CS, "Settings")
+#include "Log.h"
 
 Settings* Settings::s_pInstance = NULL;
 
@@ -27,19 +25,19 @@ Settings::Settings(QObject* parent)
     : QObject(parent)
     , m_settings()
 {
-    qCDebug(CS, "Create object");
+    LOG_D() << "Create object";
 }
 
 Settings::Settings(QString& path, QObject* parent)
     : QObject(parent)
     , m_settings(path, QSettings::IniFormat)
 {
-    qCDebug(CS) << "Create Settings from file" << path;
+    LOG_D() << "Create Settings from file" << path;
 }
 
 Settings::~Settings()
 {
-    qCDebug(CS, "Destroy Settings");
+    LOG_D() << "Destroy Settings";
 }
 
 QVariant Settings::setting(QString key, QVariant value)
@@ -49,7 +47,7 @@ QVariant Settings::setting(QString key, QVariant value)
         emit settingChanged(key);
     }
     if( m_settings.value(key).isNull() ) {
-        qCWarning(CS) << "Unable to find predefined setting" << key;
+        LOG_W() << "Unable to find predefined setting" << key;
     }
 
     return m_settings.value(key);
@@ -63,7 +61,7 @@ bool Settings::isNull(QString key)
 void Settings::setDefault(QString key, QVariant value)
 {
     if( m_settings.value(key).isNull() ) {
-        qCDebug(CS) << "Set default value for" << key << "=" << value;
+        LOG_D() << "Set default value for" << key << "=" << value;
         m_settings.setValue(key, value);
         emit settingChanged(key);
     }

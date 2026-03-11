@@ -16,11 +16,11 @@
 // Author: Rabit (@rabits)
 
 #include "RocksDBStore.h"
+#include "Log.h"
 
 #include <QBuffer>
 #include <QDataStream>
 #include <QDir>
-#include <QLoggingCategory>
 #include <QRandomGenerator>
 #include <QTemporaryDir>
 
@@ -28,8 +28,6 @@
 #include "rocksdb/iterator.h"
 #include "rocksdb/options.h"
 #include "rocksdb/write_batch.h"
-
-Q_LOGGING_CATEGORY(Rds, "RocksDBStore")
 
 RocksDBStore::RocksDBStore() = default;
 
@@ -50,7 +48,7 @@ bool RocksDBStore::open(const QString& path)
 
     QDir dir(path);
     if( !dir.exists() && !dir.mkpath(".") ) {
-        qCWarning(Rds) << "Failed to create database directory:" << path;
+        LOG_W() << "Failed to create database directory:" << path;
         return false;
     }
 
@@ -61,7 +59,7 @@ bool RocksDBStore::open(const QString& path)
 
     rocksdb::Status st = rocksdb::DB::Open(opts, path.toStdString(), &m_db);
     if( !st.ok() ) {
-        qCWarning(Rds) << "RocksDB open failed:" << QString::fromStdString(st.ToString());
+        LOG_W() << "RocksDB open failed:" << QString::fromStdString(st.ToString());
         m_db = nullptr;
         return false;
     }
@@ -73,7 +71,7 @@ bool RocksDBStore::open(const QString& path)
 bool RocksDBStore::open(QIODevice* device)
 {
     if( !device || !device->isOpen() ) {
-        qCWarning(Rds) << "Device is null or not open";
+        LOG_W() << "Device is null or not open";
         return false;
     }
 
@@ -82,7 +80,7 @@ bool RocksDBStore::open(QIODevice* device)
 
     m_tempDir = new QTemporaryDir();
     if( !m_tempDir->isValid() ) {
-        qCWarning(Rds) << "Failed to create temporary directory";
+        LOG_W() << "Failed to create temporary directory";
         delete m_tempDir;
         m_tempDir = nullptr;
         return false;
@@ -94,7 +92,7 @@ bool RocksDBStore::open(QIODevice* device)
 
     rocksdb::Status st = rocksdb::DB::Open(opts, m_tempDir->path().toStdString(), &m_db);
     if( !st.ok() ) {
-        qCWarning(Rds) << "RocksDB temp open failed:" << QString::fromStdString(st.ToString());
+        LOG_W() << "RocksDB temp open failed:" << QString::fromStdString(st.ToString());
         m_db = nullptr;
         delete m_tempDir;
         m_tempDir = nullptr;
@@ -105,7 +103,7 @@ bool RocksDBStore::open(QIODevice* device)
 
     if( device->size() > 0 ) {
         if( !deserialiseFromDevice() ) {
-            qCWarning(Rds) << "Failed to deserialise existing data from device";
+            LOG_W() << "Failed to deserialise existing data from device";
             delete m_db;
             m_db = nullptr;
             delete m_tempDir;
@@ -170,7 +168,7 @@ bool RocksDBStore::put(const QString& key, const QByteArray& value)
         rocksdb::Slice(value.constData(), value.size()));
 
     if( !st.ok() ) {
-        qCWarning(Rds) << "Put failed for key" << key << ":" << QString::fromStdString(st.ToString());
+        LOG_W() << "Put failed for key" << key << ":" << QString::fromStdString(st.ToString());
         return false;
     }
     return true;
@@ -189,7 +187,7 @@ bool RocksDBStore::get(const QString& key, QByteArray& value) const
         return false;
 
     if( !st.ok() ) {
-        qCWarning(Rds) << "Get failed for key" << key << ":" << QString::fromStdString(st.ToString());
+        LOG_W() << "Get failed for key" << key << ":" << QString::fromStdString(st.ToString());
         return false;
     }
 
@@ -218,7 +216,7 @@ bool RocksDBStore::remove(const QString& key)
         = m_db->Delete(rocksdb::WriteOptions(), rocksdb::Slice(key.toUtf8().constData(), key.toUtf8().size()));
 
     if( !st.ok() ) {
-        qCWarning(Rds) << "Delete failed for key" << key << ":" << QString::fromStdString(st.ToString());
+        LOG_W() << "Delete failed for key" << key << ":" << QString::fromStdString(st.ToString());
         return false;
     }
     return true;
@@ -306,7 +304,7 @@ bool RocksDBStore::serialiseToDevice()
     secureWipe(buffer);
 
     if( !ok )
-        qCWarning(Rds) << "Serialisation write incomplete:" << written << "of" << buffer.size();
+        LOG_W() << "Serialisation write incomplete:" << written << "of" << buffer.size();
 
     return ok;
 }
@@ -327,7 +325,7 @@ bool RocksDBStore::deserialiseFromDevice()
     quint32 version = 0;
     ds >> version;
     if( version != STREAM_VERSION ) {
-        qCWarning(Rds) << "Unknown stream version:" << version;
+        LOG_W() << "Unknown stream version:" << version;
         secureWipe(raw);
         return false;
     }
@@ -341,7 +339,7 @@ bool RocksDBStore::deserialiseFromDevice()
         ds >> key >> value;
 
         if( ds.status() != QDataStream::Ok ) {
-            qCWarning(Rds) << "Deserialisation truncated at entry" << i;
+            LOG_W() << "Deserialisation truncated at entry" << i;
             secureWipe(key);
             secureWipe(value);
             secureWipe(raw);
@@ -357,7 +355,7 @@ bool RocksDBStore::deserialiseFromDevice()
 
     rocksdb::Status st = m_db->Write(rocksdb::WriteOptions(), &batch);
     if( !st.ok() ) {
-        qCWarning(Rds) << "Batch write failed:" << QString::fromStdString(st.ToString());
+        LOG_W() << "Batch write failed:" << QString::fromStdString(st.ToString());
         return false;
     }
 

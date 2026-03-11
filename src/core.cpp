@@ -20,10 +20,10 @@
 #include "plugins.h"
 #include "settings.h"
 
+#include "Log.h"
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonDocument>
-#include <QLoggingCategory>
 #include <QRandomGenerator>
 #include <QUuid>
 
@@ -33,10 +33,8 @@
 #include "asocial/v1/event.qpb.h"
 #include "asocial/v1/group.qpb.h"
 #include "asocial/v1/message.qpb.h"
-#include "asocial/v1/params.qpb.h"
 #include "asocial/v1/profile.qpb.h"
-
-Q_LOGGING_CATEGORY(Cc, "Core")
+#include "asocial/v1/profile_param.qpb.h"
 
 // ---- Key-scheme constants --------------------------------------------------
 // Hierarchical prefix design for efficient range scans in RocksDB:
@@ -147,13 +145,13 @@ Core* Core::s_pInstance = nullptr;
 Core::Core(QObject* parent)
     : QObject(parent)
 {
-    qCDebug(Cc) << "Core singleton created";
+    LOG_D() << "Core singleton created";
 }
 
 Core::~Core()
 {
     closeProfile();
-    qCDebug(Cc) << "Core singleton destroyed";
+    LOG_D() << "Core singleton destroyed";
 }
 
 // ---------------------------------------------------------------------------
@@ -200,9 +198,9 @@ void Core::setDBKVPlugin(const QString& pluginName)
         Plugins::I()->getPlugin(QLatin1String(DBKVPluginInterface_iid), pluginName));
 
     if( !m_dbkv )
-        qCWarning(Cc) << "Failed to load DBKV plugin:" << pluginName;
+        LOG_W() << "Failed to load DBKV plugin:" << pluginName;
     else
-        qCDebug(Cc) << "DBKV plugin set to:" << pluginName;
+        LOG_D() << "DBKV plugin set to:" << pluginName;
 }
 
 void Core::setDBKVProfilePlugin(const QString& pluginName)
@@ -215,9 +213,9 @@ void Core::setDBKVProfilePlugin(const QString& pluginName)
         Plugins::I()->getPlugin(QLatin1String(DBKVPluginInterface_iid), pluginName));
 
     if( !m_dbkvProfile )
-        qCWarning(Cc) << "Failed to load DBKV profile plugin:" << pluginName;
+        LOG_W() << "Failed to load DBKV profile plugin:" << pluginName;
     else
-        qCDebug(Cc) << "DBKV profile plugin set to:" << pluginName;
+        LOG_D() << "DBKV profile plugin set to:" << pluginName;
 }
 
 void Core::setVFSPlugin(const QString& pluginName)
@@ -230,9 +228,9 @@ void Core::setVFSPlugin(const QString& pluginName)
         Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.VFSPluginInterface", pluginName));
 
     if( !m_vfs )
-        qCWarning(Cc) << "Failed to load VFS plugin:" << pluginName;
+        LOG_W() << "Failed to load VFS plugin:" << pluginName;
     else
-        qCDebug(Cc) << "VFS plugin set to:" << pluginName;
+        LOG_D() << "VFS plugin set to:" << pluginName;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,20 +257,20 @@ VFSPluginInterface* Core::getVFS() const
 bool Core::createContainer(const QString& path, quint64 maxSizeBytes)
 {
     if( !m_vfs ) {
-        qCWarning(Cc) << "No VFS plugin available";
+        LOG_W() << "No VFS plugin available";
         return false;
     }
 
     VFSContainerPluginInterface* tmp = m_vfs->openContainer(path, QString(), maxSizeBytes);
     if( !tmp ) {
-        qCWarning(Cc) << "Container creation failed:" << path;
+        LOG_W() << "Container creation failed:" << path;
         return false;
     }
     tmp->close();
     delete tmp;
 
     m_containerPath = path;
-    qCDebug(Cc) << "Container created:" << path;
+    LOG_D() << "Container created:" << path;
     return true;
 }
 
@@ -293,12 +291,12 @@ QString Core::containerPath() const
 bool Core::openProfile(const QString& password)
 {
     if( !m_vfs || !m_dbkvProfile ) {
-        qCWarning(Cc) << "VFS or DBKV profile plugin not available";
+        LOG_W() << "VFS or DBKV profile plugin not available";
         return false;
     }
 
     if( !isContainerInitialized() ) {
-        qCWarning(Cc) << "Container not initialized";
+        LOG_W() << "Container not initialized";
         return false;
     }
 
@@ -306,7 +304,7 @@ bool Core::openProfile(const QString& password)
 
     m_container = m_vfs->openContainer(m_containerPath, password);
     if( !m_container ) {
-        qCWarning(Cc) << "Failed to open VFS container";
+        LOG_W() << "Failed to open VFS container";
         return false;
     }
 
@@ -326,7 +324,7 @@ bool Core::openProfile(const QString& password)
     }
 
     if( targetFile.isEmpty() ) {
-        qCWarning(Cc) << "No database file found in VFS container for this password";
+        LOG_W() << "No database file found in VFS container for this password";
         m_container->close();
         delete m_container;
         m_container = nullptr;
@@ -335,7 +333,7 @@ bool Core::openProfile(const QString& password)
 
     m_dbDevice = m_container->openFile(targetFile);
     if( !m_dbDevice ) {
-        qCWarning(Cc) << "Failed to open database virtual file:" << targetFile;
+        LOG_W() << "Failed to open database virtual file:" << targetFile;
         m_container->close();
         delete m_container;
         m_container = nullptr;
@@ -344,7 +342,7 @@ bool Core::openProfile(const QString& password)
 
     m_dbkvProfile->closeDatabase();
     if( !m_dbkvProfile->openDatabase(m_dbDevice) ) {
-        qCWarning(Cc) << "Failed to open DBKV database from VFS";
+        LOG_W() << "Failed to open DBKV database from VFS";
         delete m_dbDevice;
         m_dbDevice = nullptr;
         m_container->close();
@@ -355,7 +353,7 @@ bool Core::openProfile(const QString& password)
 
     asocial::v1::Profile prof;
     if( !m_dbkvProfile->retrieveObject(KV::PROFILE, prof) ) {
-        qCWarning(Cc) << "No profile record found in KV store";
+        LOG_W() << "No profile record found in KV store";
         m_dbkvProfile->closeDatabase();
         delete m_dbDevice;
         m_dbDevice = nullptr;
@@ -380,7 +378,7 @@ bool Core::openProfile(const QString& password)
         }
     }
 
-    qCDebug(Cc) << "Profile opened:" << m_currentProfileId << "persona:" << m_activePersonaId;
+    LOG_D() << "Profile opened:" << m_currentProfileId << "persona:" << m_activePersonaId;
     emit profileChanged();
     return true;
 }
@@ -388,12 +386,12 @@ bool Core::openProfile(const QString& password)
 bool Core::createProfile(const QString& password, const QString& displayName)
 {
     if( !m_vfs || !m_dbkvProfile ) {
-        qCWarning(Cc) << "VFS or DBKV profile plugin not available";
+        LOG_W() << "VFS or DBKV profile plugin not available";
         return false;
     }
 
     if( !isContainerInitialized() ) {
-        qCWarning(Cc) << "Container not initialized";
+        LOG_W() << "Container not initialized";
         return false;
     }
 
@@ -401,14 +399,14 @@ bool Core::createProfile(const QString& password, const QString& displayName)
 
     m_container = m_vfs->openContainer(m_containerPath, password);
     if( !m_container ) {
-        qCWarning(Cc) << "Failed to open VFS container for new profile";
+        LOG_W() << "Failed to open VFS container for new profile";
         return false;
     }
 
     const QString dbName = dbFileName();
     m_dbDevice = m_container->openFile(dbName, QIODevice::ReadWrite);
     if( !m_dbDevice ) {
-        qCWarning(Cc) << "Failed to create database virtual file:" << dbName;
+        LOG_W() << "Failed to create database virtual file:" << dbName;
         m_container->close();
         delete m_container;
         m_container = nullptr;
@@ -417,7 +415,7 @@ bool Core::createProfile(const QString& password, const QString& displayName)
 
     m_dbkvProfile->closeDatabase();
     if( !m_dbkvProfile->openDatabase(m_dbDevice) ) {
-        qCWarning(Cc) << "Failed to open DBKV database on new VFS file";
+        LOG_W() << "Failed to open DBKV database on new VFS file";
         delete m_dbDevice;
         m_dbDevice = nullptr;
         m_container->close();
@@ -436,7 +434,7 @@ bool Core::createProfile(const QString& password, const QString& displayName)
     prof.setUpdatedAt(now);
 
     if( !m_dbkvProfile->storeObject(KV::PROFILE, prof) ) {
-        qCWarning(Cc) << "Failed to store profile record";
+        LOG_W() << "Failed to store profile record";
         m_dbkvProfile->closeDatabase();
         delete m_dbDevice;
         m_dbDevice = nullptr;
@@ -462,7 +460,7 @@ bool Core::createProfile(const QString& password, const QString& displayName)
     m_currentProfileId = profileId;
     m_activePersonaId = personaId;
 
-    qCDebug(Cc) << "Profile created:" << profileId << "name:" << displayName;
+    LOG_D() << "Profile created:" << profileId << "name:" << displayName;
     emit profileChanged();
     return true;
 }
@@ -491,7 +489,7 @@ void Core::closeProfile()
     m_activePersonaId.clear();
 
     if( hadProfile ) {
-        qCDebug(Cc) << "Profile closed";
+        LOG_D() << "Profile closed";
         emit profileChanged();
     }
 }
@@ -504,7 +502,7 @@ bool Core::isProfileOpen() const
 bool Core::deleteCurrentProfile(std::function<void(int)> progress)
 {
     if( !isProfileOpen() ) {
-        qCWarning(Cc) << "No profile is open";
+        LOG_W() << "No profile is open";
         return false;
     }
 
@@ -535,7 +533,7 @@ bool Core::deleteCurrentProfile(std::function<void(int)> progress)
     m_currentProfileId.clear();
     m_activePersonaId.clear();
 
-    qCDebug(Cc) << "Profile deleted";
+    LOG_D() << "Profile deleted";
     emit profileChanged();
     return true;
 }
@@ -688,7 +686,7 @@ bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPass
     secureWipe(json);
 
     if( !doc.isObject() ) {
-        qCWarning(Cc) << "Invalid import data";
+        LOG_W() << "Invalid import data";
         return false;
     }
 
@@ -697,7 +695,7 @@ bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPass
     QString displayName = profMap.value("display_name", "Imported").toString();
 
     if( !createProfile(vfsPassword, displayName) ) {
-        qCWarning(Cc) << "Failed to create profile for import";
+        LOG_W() << "Failed to create profile for import";
         return false;
     }
 
@@ -709,7 +707,7 @@ bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPass
     }
 
     flushProfile();
-    qCDebug(Cc) << "Profile imported successfully";
+    LOG_D() << "Profile imported successfully";
     return true;
 }
 
@@ -747,7 +745,7 @@ bool Core::setActivePersona(const QString& personaId)
     asocial::v1::Persona persona;
     if( m_dbkvProfile->retrieveObject(KV::personaKey(personaId), persona) ) {
         m_activePersonaId = personaId;
-        qCDebug(Cc) << "Active persona set to:" << persona.displayName();
+        LOG_D() << "Active persona set to:" << persona.displayName();
         return true;
     }
     return false;

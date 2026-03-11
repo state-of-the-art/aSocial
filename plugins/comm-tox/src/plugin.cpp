@@ -16,11 +16,9 @@
 // Author: Rabit (@rabits)
 
 #include "plugin.h"
+#include "Log.h"
 
 #include "tox/tox.h"
-#include <QLoggingCategory>
-
-Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
 Plugin* Plugin::s_pInstance = nullptr;
 
@@ -42,7 +40,7 @@ PluginPermissions Plugin::requiredPermissions() const
 
 QStringList Plugin::requirements() const
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return QStringList();
 }
 
@@ -51,13 +49,13 @@ bool Plugin::init()
     if( isInitialized() )
         return true;
 
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     Plugin::s_pInstance = this;
 
-    qCDebug(C) << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
+    LOG_D() << "Tox version:" << tox_version_major() << tox_version_minor() << tox_version_patch();
     // TODO: Init here
 
-    qCDebug(C) << "init() done";
+    LOG_D() << "init() done";
 
     setInitialized(true);
 
@@ -70,14 +68,14 @@ bool Plugin::deinit()
 {
     if( !isInitialized() )
         return true;
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     // TODO: Deinit here
 
     Plugin::s_pInstance = nullptr;
 
     emit appNotice(this->name().append(" deinitialized"));
-    qCDebug(C) << "deinit() done";
+    LOG_D() << "deinit() done";
     setInitialized(false);
 
     return true;
@@ -85,6 +83,6 @@ bool Plugin::deinit()
 
 bool Plugin::configure()
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return true;
 }

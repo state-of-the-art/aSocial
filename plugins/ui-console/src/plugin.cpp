@@ -16,12 +16,8 @@
 // Author: Rabit (@rabits)
 
 #include "plugin.h"
-
-#include <QLoggingCategory>
-
 #include "ConsoleUI.h"
-
-Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
+#include "Log.h"
 
 Plugin* Plugin::s_pInstance = nullptr;
 
@@ -45,7 +41,7 @@ PluginPermissions Plugin::requiredPermissions() const
 
 QStringList Plugin::requirements() const
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return {};
 }
 
@@ -54,7 +50,7 @@ bool Plugin::init()
     if( isInitialized() )
         return true;
 
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     Plugin::s_pInstance = this;
 
     m_worker = new ConsoleUI();
@@ -62,7 +58,7 @@ bool Plugin::init()
 
     configure();
 
-    qCDebug(C) << "init() done";
+    LOG_D() << "init() done";
 
     setInitialized(true);
 
@@ -75,7 +71,7 @@ bool Plugin::deinit()
 {
     if( !isInitialized() )
         return true;
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     stopUI();
 
@@ -85,7 +81,7 @@ bool Plugin::deinit()
     Plugin::s_pInstance = nullptr;
 
     emit appNotice(this->name().append(QStringLiteral(" deinitialized")));
-    qCDebug(C) << "deinit() done";
+    LOG_D() << "deinit() done";
     setInitialized(false);
 
     return true;
@@ -93,7 +89,7 @@ bool Plugin::deinit()
 
 bool Plugin::configure()
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     m_worker->configure();
 
@@ -102,7 +98,7 @@ bool Plugin::configure()
 
 bool Plugin::startUI()
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     m_worker->start();
 
@@ -111,10 +107,16 @@ bool Plugin::startUI()
 
 bool Plugin::stopUI()
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     m_worker->quit();
     m_worker->wait();
 
     return true;
+}
+
+void Plugin::logSink(LogLevel level, const QString& message)
+{
+    if( m_worker )
+        m_worker->enqueueLog(level, message);
 }

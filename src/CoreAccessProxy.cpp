@@ -16,11 +16,9 @@
 // Author: Rabit (@rabits)
 
 #include "CoreAccessProxy.h"
+#include "Log.h"
 
-#include <QLoggingCategory>
 #include <QRandomGenerator>
-
-Q_LOGGING_CATEGORY(Cap, "CoreAccessProxy")
 
 CoreAccessProxy::CoreAccessProxy(
     CoreInterface* real, PluginPermissions granted, const QString& pluginName, QObject* parent)
@@ -45,8 +43,8 @@ bool CoreAccessProxy::check(PluginPermission perm, const char* method) const
 {
     if( m_granted.testFlag(perm) )
         return true;
-    qCWarning(Cap) << "Plugin" << m_pluginName << "denied:" << method
-                   << "(missing permission:" << permissionNames(PluginPermissions(perm)).join(", ") << ")";
+    LOG_W() << "Plugin" << m_pluginName << "denied:" << method
+            << "(missing permission:" << permissionNames(PluginPermissions(perm)).join(", ") << ")";
     return false;
 }
 

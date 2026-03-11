@@ -16,16 +16,14 @@
 // Author: Rabit (@rabits)
 
 #include "EncryptedVFSContainer.h"
+#include "Log.h"
 #include "VirtualFile.h"
 
 #include <QFileInfo>
-#include <QLoggingCategory>
 #include <QStorageInfo>
 #include <QtEndian>
 
 #include <sodium.h>
-
-Q_LOGGING_CATEGORY(EVFS, "EncryptedVFSContainer")
 
 // ---------------------------------------------------------------------------
 // Construction / destruction
@@ -61,14 +59,14 @@ bool EncryptedVFSContainer::open(const QString& containerPath, const QString& pa
 
     m_file.setFileName(containerPath);
     if( !m_file.open(QIODevice::ReadWrite) ) {
-        qCCritical(EVFS) << "Cannot open container:" << containerPath;
+        LOG_C() << "Cannot open container:" << containerPath;
         return false;
     }
 
     // Verify magic header
     QByteArray magic = m_file.read(MAGIC_SIZE);
     if( magic != QByteArray(MAGIC, MAGIC_SIZE) ) {
-        qCCritical(EVFS) << "Invalid magic header";
+        LOG_C() << "Invalid magic header";
         m_file.close();
         return false;
     }
@@ -76,14 +74,14 @@ bool EncryptedVFSContainer::open(const QString& containerPath, const QString& pa
     // Read global salt
     m_salt = m_file.read(static_cast<qint64>(SALT_SIZE));
     if( static_cast<quint64>(m_salt.size()) != SALT_SIZE ) {
-        qCCritical(EVFS) << "Cannot read salt";
+        LOG_C() << "Cannot read salt";
         m_file.close();
         return false;
     }
 
     // Derive the encryption key from passphrase + salt
     if( !deriveKey(passphrase, m_salt) ) {
-        qCCritical(EVFS) << "Key derivation failed (out of memory?)";
+        LOG_C() << "Key derivation failed (out of memory?)";
         m_file.close();
         return false;
     }
@@ -93,7 +91,7 @@ bool EncryptedVFSContainer::open(const QString& containerPath, const QString& pa
     // Trial-decrypt every slot to discover files belonging to this key
     loadSlots();
 
-    qCDebug(EVFS) << "Container opened:" << containerPath << " files:" << m_files.size();
+    LOG_D() << "Container opened:" << containerPath << " files:" << m_files.size();
     return true;
 }
 
@@ -152,13 +150,13 @@ QIODevice* EncryptedVFSContainer::openFile(const QString& filename, QIODevice::O
 
         QByteArray nameUtf8 = filename.toUtf8();
         if( nameUtf8.size() > MAX_FILENAME_BYTES ) {
-            qCWarning(EVFS) << "Filename too long (max" << MAX_FILENAME_BYTES << "UTF-8 bytes):" << filename;
+            LOG_W() << "Filename too long (max" << MAX_FILENAME_BYTES << "UTF-8 bytes):" << filename;
             return nullptr;
         }
 
         slotIndex = findFreeSlot();
         if( slotIndex < 0 ) {
-            qCWarning(EVFS) << "No free header slots (max" << SLOT_COUNT << ")";
+            LOG_W() << "No free header slots (max" << SLOT_COUNT << ")";
             return nullptr;
         }
 
@@ -282,7 +280,7 @@ bool EncryptedVFSContainer::createContainer(const QString& path, quint64 maxSize
                                           : qMin(freeSpace / 2, quint64(4ULL * 1024 * 1024 * 1024));
 
     if( ceiling < minSize ) {
-        qCCritical(EVFS) << "Not enough disk space to create container";
+        LOG_C() << "Not enough disk space to create container";
         return false;
     }
 
@@ -297,12 +295,12 @@ bool EncryptedVFSContainer::createContainer(const QString& path, quint64 maxSize
 
     QFile file(path);
     if( !file.open(QIODevice::WriteOnly) ) {
-        qCCritical(EVFS) << "Cannot create file:" << path;
+        LOG_C() << "Cannot create file:" << path;
         return false;
     }
 
     if( !file.resize(static_cast<qint64>(containerSize)) ) {
-        qCCritical(EVFS) << "Cannot resize container to" << containerSize;
+        LOG_C() << "Cannot resize container to" << containerSize;
         file.close();
         QFile::remove(path);
         return false;
@@ -317,7 +315,7 @@ bool EncryptedVFSContainer::createContainer(const QString& path, quint64 maxSize
         const quint64 n = qMin(remaining, CHUNK);
         randombytes_buf(chunk.data(), static_cast<size_t>(n));
         if( file.write(chunk.constData(), static_cast<qint64>(n)) != static_cast<qint64>(n) ) {
-            qCCritical(EVFS) << "Write error during container creation";
+            LOG_C() << "Write error during container creation";
             file.close();
             QFile::remove(path);
             secureWipe(chunk);
@@ -340,7 +338,7 @@ bool EncryptedVFSContainer::createContainer(const QString& path, quint64 maxSize
     file.close();
     secureWipe(salt);
 
-    qCDebug(EVFS) << "Container created:" << path << "size:" << containerSize;
+    LOG_D() << "Container created:" << path << "size:" << containerSize;
     return true;
 }
 
@@ -578,7 +576,7 @@ QByteArray EncryptedVFSContainer::readBlobFromDisk(const FilePointer& fp)
             reinterpret_cast<const unsigned char*>(nonce.constData()),
             reinterpret_cast<const unsigned char*>(m_key.constData()))
         != 0 ) {
-        qCWarning(EVFS) << "Blob decryption failed for" << fp.filename;
+        LOG_W() << "Blob decryption failed for" << fp.filename;
         secureWipe(pt);
         secureWipe(ct);
         secureWipe(nonce);

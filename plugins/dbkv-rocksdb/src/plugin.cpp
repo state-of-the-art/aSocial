@@ -16,12 +16,10 @@
 // Author: Rabit (@rabits)
 
 #include "plugin.h"
+#include "Log.h"
 
-#include <QLoggingCategory>
 #include <QRandomGenerator>
 #include <QtProtobuf/QProtobufSerializer>
-
-Q_LOGGING_CATEGORY(Drp, "DBKVRocksdbPlugin")
 
 DBKVRocksdbPlugin::DBKVRocksdbPlugin() = default;
 
@@ -61,7 +59,7 @@ bool DBKVRocksdbPlugin::init()
     if( isInitialized() )
         return true;
 
-    qCDebug(Drp) << "Initializing plugin";
+    LOG_D() << "Initializing plugin";
 
     setInitialized(true);
     emit appNotice(name() + QLatin1String(" initialized"));
@@ -73,7 +71,7 @@ bool DBKVRocksdbPlugin::deinit()
     if( !isInitialized() )
         return true;
 
-    qCDebug(Drp) << "Deinitializing plugin";
+    LOG_D() << "Deinitializing plugin";
     closeDatabase();
     setInitialized(false);
     emit appNotice(name() + QLatin1String(" deinitialized"));
@@ -82,7 +80,7 @@ bool DBKVRocksdbPlugin::deinit()
 
 bool DBKVRocksdbPlugin::configure()
 {
-    qCDebug(Drp) << "Configuring plugin";
+    LOG_D() << "Configuring plugin";
     return true;
 }
 
@@ -96,11 +94,11 @@ bool DBKVRocksdbPlugin::openDatabase(const QString& path)
         m_store.close();
 
     if( !m_store.open(path) ) {
-        qCWarning(Drp) << "Failed to open database at" << path;
+        LOG_W() << "Failed to open database at" << path;
         return false;
     }
 
-    qCDebug(Drp) << "Database opened at" << path;
+    LOG_D() << "Database opened at" << path;
     return true;
 }
 
@@ -110,11 +108,11 @@ bool DBKVRocksdbPlugin::openDatabase(QIODevice* device)
         m_store.close();
 
     if( !m_store.open(device) ) {
-        qCWarning(Drp) << "Failed to open database from QIODevice";
+        LOG_W() << "Failed to open database from QIODevice";
         return false;
     }
 
-    qCDebug(Drp) << "Database opened from QIODevice";
+    LOG_D() << "Database opened from QIODevice";
     return true;
 }
 
@@ -131,7 +129,7 @@ void DBKVRocksdbPlugin::flushDatabase()
 void DBKVRocksdbPlugin::closeDatabase()
 {
     m_store.close();
-    qCDebug(Drp) << "Database closed";
+    LOG_D() << "Database closed";
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +139,7 @@ void DBKVRocksdbPlugin::closeDatabase()
 QStringList DBKVRocksdbPlugin::listObjects(const QString& prefix)
 {
     if( !m_store.isOpen() ) {
-        qCWarning(Drp) << "Database not open";
+        LOG_W() << "Database not open";
         return {};
     }
 
@@ -151,14 +149,14 @@ QStringList DBKVRocksdbPlugin::listObjects(const QString& prefix)
 bool DBKVRocksdbPlugin::storeObject(const QString& key, const QProtobufMessage& message)
 {
     if( !m_store.isOpen() ) {
-        qCWarning(Drp) << "Database not open";
+        LOG_W() << "Database not open";
         return false;
     }
 
     QProtobufSerializer serializer;
     QByteArray data = message.serialize(&serializer);
     if( data.isEmpty() && serializer.lastError() != QAbstractProtobufSerializer::Error::None ) {
-        qCWarning(Drp) << "Protobuf serialisation failed for key:" << key;
+        LOG_W() << "Protobuf serialisation failed for key:" << key;
         return false;
     }
 
@@ -170,7 +168,7 @@ bool DBKVRocksdbPlugin::storeObject(const QString& key, const QProtobufMessage& 
 bool DBKVRocksdbPlugin::retrieveObject(const QString& key, QProtobufMessage& message)
 {
     if( !m_store.isOpen() ) {
-        qCWarning(Drp) << "Database not open";
+        LOG_W() << "Database not open";
         return false;
     }
 
@@ -183,7 +181,7 @@ bool DBKVRocksdbPlugin::retrieveObject(const QString& key, QProtobufMessage& mes
     secureWipe(data);
 
     if( !ok )
-        qCWarning(Drp) << "Protobuf deserialisation failed for key:" << key;
+        LOG_W() << "Protobuf deserialisation failed for key:" << key;
 
     return ok;
 }
@@ -199,7 +197,7 @@ bool DBKVRocksdbPlugin::objectExists(const QString& key)
 bool DBKVRocksdbPlugin::deleteObject(const QString& key)
 {
     if( !m_store.isOpen() ) {
-        qCWarning(Drp) << "Database not open";
+        LOG_W() << "Database not open";
         return false;
     }
 

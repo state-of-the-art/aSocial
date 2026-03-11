@@ -20,6 +20,7 @@
 
 #include <QObject>
 
+#include "LogLevel.h"
 #include "plugin/UiPluginInterface.h"
 
 class ConsoleUI;
@@ -54,6 +55,8 @@ public:
     // UiPluginInterface
     bool startUI() override;
     bool stopUI() override;
+
+    void logSink(LogLevel level, const QString& message) override;
 
 signals:
     void appNotice(QString msg) override;

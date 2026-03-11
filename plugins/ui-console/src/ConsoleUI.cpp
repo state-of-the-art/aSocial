@@ -16,6 +16,7 @@
 // Author: Rabit (@rabits)
 
 #include "ConsoleUI.h"
+#include "Log.h"
 
 #include "console/CommandRouter.h"
 #include "console/LineEditor.h"
@@ -28,10 +29,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
-#include <QLoggingCategory>
 #include <QStorageInfo>
-
-Q_LOGGING_CATEGORY(Cw, PLUGIN_NAME "-worker")
 
 ConsoleUI::ConsoleUI() = default;
 ConsoleUI::~ConsoleUI() = default;
@@ -1412,7 +1410,7 @@ void ConsoleUI::buildUtilityCommands()
 
 void ConsoleUI::configure()
 {
-    qCDebug(Cw) << __func__;
+    LOG_D() << __func__;
 
     m_router = std::make_unique<CommandRouter>();
 
@@ -1428,13 +1426,55 @@ void ConsoleUI::configure()
 }
 
 // ===========================================================================
+// Log queue (thread-safe; flushed so raw terminal is not broken)
+// ===========================================================================
+
+void ConsoleUI::enqueueLog(LogLevel level, const QString& message)
+{
+    QMutexLocker lock(&m_logMutex);
+    m_logQueue.enqueue(qMakePair(level, message));
+}
+
+void ConsoleUI::flushLogQueue()
+{
+    if( !m_term )
+        return;
+    QQueue<QPair<LogLevel, QString>> pending;
+    {
+        QMutexLocker lock(&m_logMutex);
+        pending.swap(m_logQueue);
+    }
+    for( const auto& p : std::as_const(pending) ) {
+        LogLevel level = p.first;
+        const QString& msg = p.second;
+        const char* prefix = "";
+        switch( level ) {
+        case LogLevel::Debug:
+            prefix = Style::muted();
+            break;
+        case LogLevel::Info:
+            prefix = Style::info();
+            break;
+        case LogLevel::Warning:
+            prefix = Style::warning();
+            break;
+        case LogLevel::Critical:
+        case LogLevel::Fatal:
+            prefix = Style::error();
+            break;
+        default:
+            break;
+        }
+        m_term->writeLine(QStringLiteral("  %1%2%3").arg(QLatin1String(prefix), msg, QLatin1String(Style::reset())));
+    }
+}
+
+// ===========================================================================
 // run()  --  main read-eval-print loop
 // ===========================================================================
 
 void ConsoleUI::run()
 {
-    qCDebug(Cw) << __func__;
-
     m_term = std::make_unique<Terminal>();
     m_editor = std::make_unique<LineEditor>(*m_term);
     m_prompt = std::make_unique<Prompt>(*m_term);
@@ -1444,6 +1484,8 @@ void ConsoleUI::run()
     showBanner();
 
     for( ;; ) {
+        flushLogQueue();
+
         QString prompt = promptText() + QStringLiteral(" ");
         QStringList completions = m_router->completions(QString());
 

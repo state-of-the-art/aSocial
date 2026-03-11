@@ -20,11 +20,22 @@
 
 // Interface to implement the way application will display the content
 
+#include "LogLevel.h"
 #include "PluginInterface.h"
+
+#include <QDebug>
 #include <QStringList>
 
 #define UiPluginInterface_iid "io.stateoftheart.asocial.plugin.UiPluginInterface"
 
+/**
+ * @brief Interface for the active UI plugin that also acts as the log sink.
+ *
+ * All log output from core and plugins is routed to the active UI plugin
+ * so that display is controlled (e.g. ui-console can write through the
+ * terminal without breaking the raw prompt). Default implementations
+ * (e.g. ui-gui, ui-cmd) should use Qt's qDebug/qInfo/qWarning/qCritical/qFatal.
+ */
 class UiPluginInterface : virtual public PluginInterface
 {
 public:
@@ -32,6 +43,28 @@ public:
 
     virtual bool startUI() = 0;
     virtual bool stopUI() = 0;
+
+    /** @brief Receives the log messages to print them out */
+    virtual void logSink(LogLevel level, const QString& message)
+    {
+        switch( level ) {
+        case LogLevel::Debug:
+            qDebug().noquote() << message;
+            break;
+        case LogLevel::Info:
+            qInfo().noquote() << message;
+            break;
+        case LogLevel::Warning:
+            qWarning().noquote() << message;
+            break;
+        case LogLevel::Critical:
+            qCritical().noquote() << message;
+            break;
+        case LogLevel::Fatal:
+            qFatal("%s", qPrintable(message));
+            break;
+        }
+    }
 };
 
 Q_DECLARE_INTERFACE(UiPluginInterface, UiPluginInterface_iid)

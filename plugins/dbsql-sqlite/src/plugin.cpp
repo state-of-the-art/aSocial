@@ -17,10 +17,8 @@
 
 #include "plugin.h"
 
+#include "Log.h"
 #include <sodium.h>
-#include <QLoggingCategory>
-
-Q_LOGGING_CATEGORY(C, PLUGIN_NAME)
 
 Plugin* Plugin::s_pInstance = nullptr;
 
@@ -45,7 +43,7 @@ PluginPermissions Plugin::requiredPermissions() const
 
 QStringList Plugin::requirements() const
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return {};
 }
 
@@ -54,11 +52,11 @@ bool Plugin::init()
     if( isInitialized() )
         return true;
 
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     Plugin::s_pInstance = this;
 
     if( sodium_init() < 0 ) {
-        qCCritical(C) << "libsodium initialization failed";
+        LOG_C() << "libsodium initialization failed";
         emit appError(name() + QLatin1String(": libsodium init failed"));
         return false;
     }
@@ -72,7 +70,7 @@ bool Plugin::deinit()
 {
     if( !isInitialized() )
         return true;
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
 
     if( m_db.isOpen() )
         m_db.close();
@@ -85,7 +83,7 @@ bool Plugin::deinit()
 
 bool Plugin::configure()
 {
-    qCDebug(C) << __func__;
+    LOG_D() << __func__;
     return true;
 }
 

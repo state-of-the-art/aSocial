@@ -22,9 +22,7 @@
 #include <QStandardPaths>
 #include <QTranslator>
 
-#include <QLoggingCategory>
-
-Q_LOGGING_CATEGORY(Cm, "main")
+#include "Log.h"
 
 #include "core.h"
 #include "plugins.h"
@@ -34,7 +32,8 @@ Q_LOGGING_CATEGORY(Cm, "main")
 
 int main(int argc, char* argv[])
 {
-    qCDebug(Cm, "Init v%s", PROJECT_VERSION);
+    LOGGER = new Log("aSocial", LogLevel::Debug, nullptr);
+    LOG_D() << "Init v" << PROJECT_VERSION;
 
     QScopedPointer<QCoreApplication> app(new QCoreApplication(argc, argv));
     QCoreApplication::setOrganizationName("State-Of-The-Art");
@@ -68,7 +67,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    qCInfo(Cm, "Init settings...");
+    LOG_I() << "Init settings...";
     if( parser.isSet(workingDirectoryOption) ) {
         const QString wd = parser.value(workingDirectoryOption);
         QString conf_path = QDir(wd).absolutePath() + QDir::separator() + "settings.ini";
@@ -85,7 +84,7 @@ int main(int argc, char* argv[])
     Settings::I()->setDefault(
         "vfs.container.path", Settings::I()->setting("workdir.appdata").toString() + QDir::separator() + "data.vfs");
 
-    qCInfo(Cm, "Init plugins...");
+    LOG_I() << "Init plugins...";
     Plugins::I();
 
     // Seed default settings for plugin selection
@@ -93,7 +92,7 @@ int main(int argc, char* argv[])
     Settings::I()->setDefault("dbkv.plugin", "dbkv-json");
     Settings::I()->setDefault("dbkv.profile.plugin", "dbkv-rocksdb");
 
-    qCInfo(Cm, "Init core...");
+    LOG_I() << "Init core...";
     Core::I()->setApp(app.data());
     Core::I()->setDBKVPlugin(Settings::I()->setting("dbkv.plugin").toString());
     Core::I()->setDBKVProfilePlugin(Settings::I()->setting("dbkv.profile.plugin").toString());
@@ -101,9 +100,9 @@ int main(int argc, char* argv[])
     Core::I()->init();
 
     if( parser.isSet(noUiOption) ) {
-        qCDebug(Cm, "aSocial - console mode");
+        LOG_D() << "aSocial - console mode";
     } else {
-        qCDebug(Cm, "aSocial - UI mode");
+        LOG_D() << "aSocial - UI mode";
     }
 
     // Activate UI plugin
@@ -113,12 +112,13 @@ int main(int argc, char* argv[])
     UiPluginInterface* plugin = qobject_cast<UiPluginInterface*>(
         Plugins::I()->getPlugin("io.stateoftheart.asocial.plugin.UiPluginInterface", "ui-console"));
     if( plugin == nullptr ) {
-        qCFatal(Cm, "Unable to locate UI plugin");
+        LOG_F() << "Unable to locate UI plugin";
         return 1;
     }
+    LOGGER->setSink(plugin);
     plugin->startUI();
 
-    qCDebug(Cm, "UI Plugin activated");
+    LOG_D() << "UI Plugin activated";
 
     return app->exec();
 }

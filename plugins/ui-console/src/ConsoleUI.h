@@ -19,8 +19,12 @@
 #define CONSOLEUI_H
 
 #include "CoreInterface.h"
+#include "LogLevel.h"
 
 #include <memory>
+#include <QMutex>
+#include <QPair>
+#include <QQueue>
 #include <QThread>
 
 class CommandRouter;
@@ -53,6 +57,16 @@ public:
     /** @brief Inject the Core access proxy. */
     void setCore(CoreInterface* core) { m_core = core; }
 
+    /**
+     * @brief Enqueue a log message for display on the terminal (thread-safe).
+     *
+     * Called from the UI plugin's log* methods; messages are flushed at
+     * the start of each REPL iteration so they do not break the raw prompt.
+     * @param level 0=Debug, 1=Info, 2=Warning, 3=Critical, 4=Fatal.
+     * @param message Formatted log line.
+     */
+    void enqueueLog(LogLevel level, const QString& message);
+
 private:
     void run() override;
 
@@ -73,7 +87,14 @@ private:
     // --- Prompt helpers ----------------------------------------------------
     QString promptText() const;
 
+    /** @brief Drain the log queue and write lines to the terminal (call from run() only). */
+    void flushLogQueue();
+
     CoreInterface* m_core = nullptr;
+
+    /** @brief Thread-safe queue for log lines; flushed at each REPL iteration. */
+    QMutex m_logMutex;
+    QQueue<QPair<LogLevel, QString>> m_logQueue;
 
     // Framework components (created on the worker thread in run())
     std::unique_ptr<Terminal> m_term;

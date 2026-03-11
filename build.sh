@@ -22,7 +22,7 @@ BASEDIR=$(dirname `readlink -f $0`)
 
 . "$BASEDIR/_prepare.sh"
 
-"$BASEDIR/check.sh"
+[ "$NOCHECK" ] || "$BASEDIR/check.sh"
 
 # Build the project
 docker run -i --rm \

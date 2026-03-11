@@ -16,18 +16,16 @@
 // Author: Rabit (@rabits)
 
 #include "VirtualSqliteDatabase.h"
+#include "Log.h"
 
 #include <QBuffer>
 #include <QIODevice>
-#include <QLoggingCategory>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlRecord>
 #include <QUuid>
 
 #include <sodium.h>
-
-Q_LOGGING_CATEGORY(VSD, "VirtualSqliteDatabase")
 
 VirtualSqliteDatabase::VirtualSqliteDatabase(QObject* parent)
     : QObject(parent)
@@ -52,7 +50,7 @@ QSqlDatabase VirtualSqliteDatabase::open(QIODevice* device)
     db.setDatabaseName(QLatin1String(":memory:"));
 
     if( !db.open() ) {
-        qCCritical(VSD) << "Failed to open in-memory database:" << db.lastError().text();
+        LOG_C() << "Failed to open in-memory database:" << db.lastError().text();
         QSqlDatabase::removeDatabase(m_connectionName);
         return QSqlDatabase();
     }
@@ -63,7 +61,7 @@ QSqlDatabase VirtualSqliteDatabase::open(QIODevice* device)
         QByteArray existing = m_device->readAll();
         if( !existing.isEmpty() ) {
             if( !deserializeFromSql(existing) )
-                qCWarning(VSD) << "Could not restore DB from device – starting fresh";
+                LOG_W() << "Could not restore DB from device – starting fresh";
             secureWipe(existing);
         }
     }
@@ -74,7 +72,7 @@ QSqlDatabase VirtualSqliteDatabase::open(QIODevice* device)
     connect(&m_autoFlushTimer, &QTimer::timeout, this, &VirtualSqliteDatabase::flush);
     m_autoFlushTimer.start();
 
-    qCDebug(VSD) << "Database opened on device" << m_device;
+    LOG_D() << "Database opened on device" << m_device;
     return db;
 }
 
@@ -89,7 +87,7 @@ void VirtualSqliteDatabase::flush()
         return;
 
     if( !m_device->isOpen() || !m_device->isWritable() ) {
-        qCWarning(VSD) << "Backing device not writable, skipping flush";
+        LOG_W() << "Backing device not writable, skipping flush";
         return;
     }
 
@@ -118,7 +116,7 @@ void VirtualSqliteDatabase::close()
     m_isOpen = false;
     m_device = nullptr;
 
-    qCDebug(VSD) << "Database closed";
+    LOG_D() << "Database closed";
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +150,7 @@ QByteArray VirtualSqliteDatabase::serializeToSql() const
     QSqlQuery q(db);
     if( !q.exec(QLatin1String("SELECT type, name, sql FROM sqlite_master "
                               "WHERE sql IS NOT NULL ORDER BY rowid")) ) {
-        qCWarning(VSD) << "Cannot read sqlite_master:" << q.lastError().text();
+        LOG_W() << "Cannot read sqlite_master:" << q.lastError().text();
         return {};
     }
 
@@ -252,7 +250,7 @@ bool VirtualSqliteDatabase::deserializeFromSql(const QByteArray& sqlDump)
     bool allOk = true;
     for( const QString& stmt : statements ) {
         if( !q.exec(stmt) ) {
-            qCWarning(VSD) << "SQL restore failed:" << q.lastError().text() << "| stmt:" << stmt.left(120);
+            LOG_W() << "SQL restore failed:" << q.lastError().text() << "| stmt:" << stmt.left(120);
             allOk = false;
         }
     }

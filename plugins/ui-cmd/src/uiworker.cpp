@@ -16,11 +16,11 @@
 // Author: Rabit (@rabits)
 
 #include "uiworker.h"
+#include "Log.h"
 
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
-#include <QLoggingCategory>
 #include <QStorageInfo>
 
 #include "qrcodegen.hpp"
@@ -31,8 +31,6 @@
 namespace cli {
 using MainScheduler = LoopScheduler;
 } // namespace cli
-
-Q_LOGGING_CATEGORY(Cw, PLUGIN_NAME "-worker")
 
 // ---- Timestamp -> ISO string helper ----------------------------------------
 namespace {
@@ -48,7 +46,7 @@ QString tsIso(const google::protobuf::Timestamp& ts)
 
 void UiWorker::configure()
 {
-    qCDebug(Cw) << __func__;
+    LOG_D() << __func__;
 
     root_menu = std::make_unique<CustomMenu>("main", "Main menu of aSocial");
     root_menu->setCore(m_core);
@@ -1003,7 +1001,7 @@ void UiWorker::buildEventMenu()
 
 void UiWorker::run()
 {
-    qCDebug(Cw) << __func__;
+    LOG_D() << __func__;
 
     cli::Cli cli(std::move(root_menu));
 
