@@ -30,7 +30,7 @@ class CoreAccessProxy;
  *
  * During startup the plugin directories are scanned for shared libraries
  * matching the "libasocial-plugin-*" pattern.  Each library is probed for
- * known Qt plugin interfaces (UI, Comm, VFS, DBKV, DBSQL).
+ * known Qt plugin interfaces (UI, Comm, VFS, DBKV).
  *
  * On activation a per-plugin CoreAccessProxy is created whose permission
  * mask matches the flags returned by PluginInterface::requiredPermissions().

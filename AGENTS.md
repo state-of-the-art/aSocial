@@ -40,7 +40,6 @@ Plugins are:
 * DBKV - key-value database with dual-mode support: filesystem mode for unencrypted background
  services (like relay) and QIODevice mode for encrypted profile storage via VFS.
  All CRUD operations use QProtobufMessage for serialisation/deserialisation.
-* DBSQL - SQL database plugin (still available for plugins that need relational queries).
 * TODO - I think we need more types of plugins.
 
 Plugins could contain their specific libs (which will be built by the build system) and if they are

@@ -29,7 +29,6 @@
 #include "core.h"
 #include "plugin/CommPluginInterface.h"
 #include "plugin/DBKVPluginInterface.h"
-#include "plugin/DBSQLPluginInterface.h"
 #include "plugin/UiPluginInterface.h"
 #include "plugin/VFSPluginInterface.h"
 
@@ -253,7 +252,6 @@ void Plugins::refreshPluginsList()
             loaded = addPlugin<CommPluginInterface>(qobject_cast<CommPluginInterface*>(plugin), plugin) || loaded;
             loaded = addPlugin<VFSPluginInterface>(qobject_cast<VFSPluginInterface*>(plugin), plugin) || loaded;
             loaded = addPlugin<DBKVPluginInterface>(qobject_cast<DBKVPluginInterface*>(plugin), plugin) || loaded;
-            loaded = addPlugin<DBSQLPluginInterface>(qobject_cast<DBSQLPluginInterface*>(plugin), plugin) || loaded;
 
             if( !loaded ) {
                 plugin_loader.unload();
