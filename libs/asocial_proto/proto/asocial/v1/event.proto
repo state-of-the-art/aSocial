@@ -19,8 +19,17 @@ message Event
     string persona_uid = 4; // FK -> Persona.uid
 
     string title = 5;
-    optional string description = 6;
+    optional string description = 6; // Markdown-formatted description
     optional string location = 7;
     optional google.protobuf.Timestamp started = 8; // When the event happened
     optional google.protobuf.Timestamp ended = 9;   // When the event completed
+
+    // "point" (single timestamp) or "range" (started..ended block)
+    string event_type = 10;
+
+    // Display colour in "#RRGGBB" hex format for timeline rendering
+    optional string color = 11;
+
+    // Category tag for grouping: "education", "work", "travel", "personal", ...
+    optional string category = 12;
 }

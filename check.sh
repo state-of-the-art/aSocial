@@ -36,7 +36,7 @@ for f in $(git diff --name-only origin/master); do
         fi
 
         # Logic files: go, proto, sh
-        if echo "$f" | grep -q '\.\(cpp\|h\|sh\|cmake\)\|CMakeLists.txt$'; then
+        if echo "$f" | grep -q '\.\(cpp\|h\|qml\|js\|sh\|cmake\|CMakeLists.txt\)$'; then
             if echo "$f" | fgrep -q '.gen.'; then
                 continue
             fi
@@ -51,7 +51,7 @@ for f in $(git diff --name-only origin/master); do
             fi
 
             # Should contain license
-            if !(head -20 "$f" | fgrep -q 'GNU General Public License'); then
+            if !(head -20 "$f" | grep -q 'GNU General Public License\|SPDX-License-Identifier: GPL-3.0-or-later'); then
                 echo "ERROR: Should contain license name: $f"
                 errors=$((${errors} + 1))
             fi
@@ -79,12 +79,27 @@ if [ "${blank_char_end}" ]; then
 fi
 
 echo
+echo '---------------------- qmlformat verify ----------------------'
+echo
+for f in $(git diff --name-only origin/master | grep '\.qml$'); do
+    result=$(qmlformat "$f" | diff -u "$f" -)
+    if [ "${result}" ]; then
+        qmlformat_files="$qmlformat_files $f"
+        errors=$((${errors} + 1))
+        echo "qmlformat $f:\n$(echo -- "$result" | head)\n..."
+    fi
+done
+if [ "${qmlformat_files}" ]; then
+    echo "ERROR: Please run 'qmlformat -i${qmlformat_files}'"
+fi
+
+echo
 echo '---------------------- clang-format verify ----------------------'
 echo
-reformat=$(git clang-format origin/master --quiet --diff)
-if [ "${reformat}" ]; then
-    echo "ERROR: Please run 'git clang-format': \n${reformat}"
-    errors=$((${errors} + $(echo "${reformat}" | wc -l)))
+clangformat=$(git clang-format origin/master --quiet --diff)
+if [ "${clangformat}" ]; then
+    echo "ERROR: Please run 'git clang-format': \n${clangformat}"
+    errors=$((${errors} + $(echo "${clangformat}" | wc -l)))
 fi
 
 exit ${errors}

@@ -122,6 +122,7 @@ bool Plugins::activateInterface(const QString& name, const QLatin1String& interf
     plugin_if->init();
     if( !m_plugins_active[interface_id].contains(plugin) ) {
         m_plugins_active[interface_id].append(plugin);
+        m_activation_order.append(qMakePair(name, interface_id));
         return true;
     }
     return false;
@@ -129,6 +130,7 @@ bool Plugins::activateInterface(const QString& name, const QLatin1String& interf
 
 bool Plugins::deactivateInterface(const QString& name, const QLatin1String& interface_id)
 {
+    LOG_D() << "Deactivating interface for" << name;
     QObject* plugin = m_plugins[name][interface_id];
     PluginInterface* plugin_if = qobject_cast<PluginInterface*>(plugin);
     if( !plugin_if ) {
@@ -137,6 +139,13 @@ bool Plugins::deactivateInterface(const QString& name, const QLatin1String& inte
     }
     if( m_plugins_active[interface_id].contains(plugin) ) {
         m_plugins_active[interface_id].removeOne(plugin);
+        // Remove one matching entry from activation order (last match for LIFO)
+        for( int i = m_activation_order.size() - 1; i >= 0; --i ) {
+            if( m_activation_order[i].first == name && m_activation_order[i].second == interface_id ) {
+                m_activation_order.removeAt(i);
+                break;
+            }
+        }
         // Deinit plugin if no interface active anymore
         auto it = m_plugins_active.begin();
         while( it != m_plugins_active.end() ) {
@@ -154,6 +163,16 @@ bool Plugins::deactivateInterface(const QString& name, const QLatin1String& inte
         return true;
     }
     return false;
+}
+
+void Plugins::shutdownAllPluginsInReverseOrder()
+{
+    // Deactivate in reverse order so UI and dependent plugins shut down first
+    for( int i = m_activation_order.size() - 1; i >= 0; --i ) {
+        const QString name = m_activation_order[i].first;
+        const QLatin1String interface_id = m_activation_order[i].second;
+        deactivateInterface(name, interface_id);
+    }
 }
 
 void Plugins::settingChanged(const QString& key, const QVariant& value)

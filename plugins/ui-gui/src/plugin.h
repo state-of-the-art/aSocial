@@ -21,6 +21,18 @@
 #include "plugin/UiPluginInterface.h"
 #include <QObject>
 
+class QQmlApplicationEngine;
+class GuiBackend;
+
+/**
+ * @brief Qt Quick GUI plugin for aSocial.
+ *
+ * Implements UiPluginInterface by spinning up a QQmlApplicationEngine
+ * with the bundled QML UI.  The GuiBackend singleton bridges QML to
+ * the CoreInterface CRUD operations.
+ *
+ * Touch-ready: designed for both desktop mouse and Android touch.
+ */
 class Plugin : public QObject, public UiPluginInterface
 {
     Q_OBJECT
@@ -37,7 +49,7 @@ public:
     QString version() const override;
     PluginPermissions requiredPermissions() const override;
     QStringList requirements() const override;
-    bool init() override; // Warning: executing multiple times for each interface
+    bool init() override;
     bool deinit() override;
     bool configure() override;
 
@@ -49,5 +61,9 @@ signals:
     void appNotice(QString msg) override;
     void appWarning(QString msg) override;
     void appError(QString msg) override;
+
+private:
+    QQmlApplicationEngine* m_engine = nullptr;
+    GuiBackend* m_backend = nullptr;
 };
 #endif // PLUGIN_H

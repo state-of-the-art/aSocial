@@ -31,7 +31,7 @@ docker run -i --rm \
     -v "${BASEDIR}/build/docker:/home/user/build:rw" \
     -v "${PWD}:/home/user/out:rw" \
     asocial:build \
-    sh -ec "$(getBuildScript 'Release' "$1" 'sudo cp -a aSocial-x86_64.AppImage ./out/')"
+    sh -ec "$(getBuildScript 'Release' "$1" 'sudo cp -a aSocial-x86_64.AppImage ./out/' "$NOGUI")"
 
 # Changing ownership of the resulting file to current user
 cp -a aSocial-x86_64.AppImage tmp-aSocial-x86_64.AppImage

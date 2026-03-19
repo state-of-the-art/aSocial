@@ -18,8 +18,10 @@
 #ifndef PLUGINS_H
 #define PLUGINS_H
 
+#include <QList>
 #include <QMap>
 #include <QObject>
+#include <QPair>
 
 class CoreAccessProxy;
 
@@ -85,6 +87,14 @@ public:
      */
     bool deactivateInterface(const QString& name, const QLatin1String& interface_id);
 
+    /**
+     * @brief Deactivate all active plugin interfaces in reverse activation order.
+     *
+     * Ensures each plugin's deinit() is called before Core or Plugins are
+     * destroyed, preventing use-after-free and allowing data to be saved.
+     */
+    void shutdownAllPluginsInReverseOrder();
+
 public slots:
     void settingChanged(const QString& key, const QVariant& value);
 
@@ -106,6 +116,9 @@ private:
     QMap<QString, QString> m_setting_plugin_active; // setting_key : plugin_name
     QMap<QString, QPair<QString, QLatin1String>>
         m_setting_plugin_interface_active; // setting_key : (plugin_name, interface_id)
+
+    /** @brief Activation order (plugin name, interface IID) for reverse-order shutdown. */
+    QList<QPair<QString, QLatin1String>> m_activation_order;
 };
 
 #endif // PLUGINS_H

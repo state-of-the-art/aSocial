@@ -16,9 +16,10 @@
 // Author: Rabit (@rabits)
 
 #include "kotik/Kotik.h"
+#include <algorithm>
 #include <QTest>
 
-class CliIntegrationTest : public QObject
+class ConsoleIntegrationTest : public QObject
 {
     Q_OBJECT
 
@@ -31,16 +32,14 @@ private slots:
     void test_plugin_load_and_help_command()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
         QVERIFY(!k->contains("no supported interfaces found for plugin"));
         QVERIFY(k->contains("Create Settings from file \"" + k->workdirPath()));
 
         k->write("help");
-        QVERIFY(k->waitForLog("Commands available:", 500));
-        QVERIFY(k->contains("exit"));
-        QVERIFY(k->contains("Quit the session"));
-        QVERIFY(k->contains("history"));
-        QVERIFY(k->contains("Show the history"));
+        QVERIFY(k->waitForLog("Commands:", 500));
+        QVERIFY(k->waitForLog("exit", 500));
+        QVERIFY(k->contains("Exit aSocial"));
 
         QVERIFY(k->contains("settings"));
         QVERIFY(k->contains("profile"));
@@ -54,10 +53,10 @@ private slots:
 
         k->write("notacommand");
         QVERIFY(k->waitForLog("Unknown command or incorrect parameters: notacommand.", 500));
-        QVERIFY(k->noErrorLogs());
 
         k->contains(QRegularExpression("loaded in \\d+ ms"));
 
+        QVERIFY(k->noErrorLogs());
         QVERIFY(k->exitApp());
         QCOMPARE(k->exitCode(), 0);
     }
@@ -68,7 +67,7 @@ private slots:
     void test_settings_commands()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("settings list");
         QVERIFY(k->waitForLog("Settings", 500));
@@ -82,7 +81,7 @@ private slots:
 
         k->clear();
         k->write("settings set test.key hello");
-        QVERIFY(k->waitForLog("OK: test.key = hello", 500));
+        QVERIFY(k->waitForLog("test.key = hello", 500));
 
         k->clear();
         k->write("settings get test.key");
@@ -99,16 +98,25 @@ private slots:
     void test_profile_lifecycle()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->clear();
         k->write("init 1");
-        QVERIFY(k->waitForLog("Container initialized", 15000));
+        QVERIFY(k->waitForLog("Container created at", 15000));
 
         k->clear();
-        k->write("profile create testpass TestUser");
-        QVERIFY(k->waitForLog("Profile created successfully", 15000));
-        QVERIFY(k->contains("TestUser"));
+        k->write("profile create");
+        QVERIFY(k->waitForLog("Enter password:", 500));
+        k->clear();
+        k->write("testpass");
+        QVERIFY(k->waitForLog("Confirm password:", 500));
+        k->clear();
+        k->write("testpass");
+        QVERIFY(k->waitForLog("Display name:", 500));
+        k->clear();
+        k->write("TestUser");
+        QVERIFY(k->waitForLog("Profile created: TestUser", 1000));
+        QVERIFY(k->waitForLog("main (TestUser) >", 500));
 
         k->clear();
         k->write("profile current");
@@ -118,10 +126,11 @@ private slots:
         k->clear();
         k->write("profile close");
         QVERIFY(k->waitForLog("Profile closed", 500));
+        QVERIFY(k->waitForLog("main (no profile) >", 500));
 
         k->clear();
         k->write("profile open testpass");
-        QVERIFY(k->waitForLog("Profile opened: TestUser", 15000));
+        QVERIFY(k->waitForLog("Profile opened: TestUser", 5000));
 
         k->write("profile close");
         QVERIFY(k->waitForLog("Profile closed", 500));
@@ -131,13 +140,17 @@ private slots:
         QCOMPARE(k->exitCode(), 0);
 
         // Reopening the existing profile
-        Kotik* k2 = new Kotik(this);
-        QVERIFY(k2->waitForLog("main>", 5000));
+        Kotik* k2 = new Kotik(this, false);
+        k2->setWorkdir(k->workdirPath());
+        k2->start();
+        QVERIFY(k2->waitForLog("main (no profile) >", 5000));
 
-        QVERIFY(k2->contains("Container opened: \"" + k2->workdirFilePath("data.vfs")));
-
-        k->write("profile open testpass");
+        k2->write("profile open");
+        QVERIFY(k2->waitForLog("Enter password:", 5000));
+        k2->write("testpass");
         QVERIFY(k2->waitForLog("Profile opened: TestUser", 5000));
+        QVERIFY(k2->contains("Container opened: \"" + k2->workdirFilePath("data.vfs")));
+        QVERIFY(!k2->contains("testpass"));
 
         QVERIFY(k2->noErrorLogs());
         QVERIFY(k2->exitApp());
@@ -150,28 +163,63 @@ private slots:
     void test_contact_crud()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("init 1");
-        QVERIFY(k->waitForLog("Container initialized", 15000));
+        QVERIFY(k->waitForLog("Container created at", 15000));
         k->write("profile create pw Alice");
-        QVERIFY(k->waitForLog("Profile created", 15000));
+        QVERIFY(k->waitForLog("Profile created:", 5000));
+
+        k->clear();
+        k->write("contact add Bob");
+        QVERIFY(k->waitForLog("Contact added: Bob", 500));
+        QString uid;
+        QVERIFY(k->findValues("Bob (uid=%s)", &uid));
+
+        k->clear();
+        k->write("contact list");
+        QVERIFY(k->waitForLog("Contacts (1):", 500));
+        QVERIFY(k->waitForLog("Bob", 500));
+        QVERIFY(k->contains("trust=0"));
+        QVERIFY(k->contains(QString("uid=%1").arg(uid)));
+
+        k->clear();
+        k->write("contact info");
+        QVERIFY(k->waitForLog("Contact UID:", 500));
+        k->write(uid);
+        QVERIFY(k->waitForLog("Contact:", 500));
+        QVERIFY(k->waitForLog("Name:  Bob", 500));
+
+        k->clear();
+        k->write("contact search Bob");
+        QVERIFY(k->waitForLog("Found 1 contact", 500));
+        QVERIFY(k->waitForLog("Bob", 500));
+        QVERIFY(k->contains(QString("uid=%1").arg(uid)));
+
+        k->clear();
+        k->write("message send Bob Test by unique name");
+        QVERIFY(k->waitForLog("Message sent", 500));
 
         k->clear();
         k->write("contact add Bob");
         QVERIFY(k->waitForLog("Contact added: Bob", 500));
 
         k->clear();
-        k->write("contact list");
-        QVERIFY(k->waitForLog("Contacts (1):", 500));
-        QVERIFY(k->contains("Bob"));
+        k->write("message send Bob");
+        QVERIFY(k->waitForLog("Message failed: too many contacts matches 'Bob'", 500));
 
         k->clear();
-        k->write("contact search Bob");
-        QVERIFY(k->waitForLog("Found 1 contact", 500));
+        k->write("message send");
+        QVERIFY(k->waitForLog("Recipient UID:", 500));
+        k->write(uid);
+        QVERIFY(k->waitForLog("Message body:", 500));
+        k->write("Test by uid");
+        QVERIFY(k->waitForLog("Message sent", 500));
 
         k->clear();
-        k->write("contact delete 00000000-0000-0000-0000-000000000000");
+        k->write(QString("contact delete %1").arg(uid));
+        QVERIFY(k->waitForLog("Delete this contact?", 500));
+        k->write("y");
         QVERIFY(k->waitForLog("Contact deleted", 500));
 
         QVERIFY(k->noErrorLogs());
@@ -185,24 +233,28 @@ private slots:
     void test_group_and_message()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("init 1");
-        QVERIFY(k->waitForLog("Container initialized", 15000));
+        QVERIFY(k->waitForLog("Container created at", 15000));
         k->write("profile create pw2 GroupTester");
-        QVERIFY(k->waitForLog("Profile created", 15000));
+        QVERIFY(k->waitForLog("Profile created:", 15000));
 
         k->clear();
         k->write("group create Family");
         QVERIFY(k->waitForLog("Group created: Family", 500));
+        QString uid;
+        QVERIFY(k->findValues("Family (uid=%s)", &uid));
 
         k->clear();
         k->write("group list");
         QVERIFY(k->waitForLog("Groups (1):", 500));
+        QVERIFY(k->waitForLog("Family", 500));
+        QVERIFY(k->contains(QString("uid=%1").arg(uid)));
 
         k->clear();
         k->write("message send nobody Hello_World");
-        QVERIFY(k->waitForLog("Message sent", 500));
+        QVERIFY(k->waitForLog("Message failed: nobody not found", 500));
 
         k->clear();
         k->write("message list");
@@ -220,17 +272,17 @@ private slots:
     void test_persona_and_events()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("init 1");
-        QVERIFY(k->waitForLog("Container initialized", 15000));
+        QVERIFY(k->waitForLog("Container created at", 15000));
         k->write("profile create pw3 PersonaTester");
-        QVERIFY(k->waitForLog("Profile created", 15000));
+        QVERIFY(k->waitForLog("Profile created:", 15000));
 
         k->clear();
         k->write("persona list");
         QVERIFY(k->waitForLog("Personas (1):", 500));
-        QVERIFY(k->contains("[default]"));
+        QVERIFY(k->waitForLog("[default]", 500));
 
         k->clear();
         k->write("persona create WorkSelf");
@@ -247,8 +299,8 @@ private slots:
         k->clear();
         k->write("event list");
         QVERIFY(k->waitForLog("Events (1):", 500));
-        QVERIFY(k->contains("Birthday"));
-        QVERIFY(k->contains("2026-03-15"));
+        QVERIFY(k->waitForLog("Birthday", 500));
+        QVERIFY(k->contains("2026-03-15T00:00:00"));
 
         QVERIFY(k->noErrorLogs());
         QVERIFY(k->exitApp());
@@ -261,12 +313,12 @@ private slots:
     void test_export_import()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("init 1");
-        QVERIFY(k->waitForLog("Container initialized", 15000));
+        QVERIFY(k->waitForLog("Container created at", 15000));
         k->write("profile create pw4 Exporter");
-        QVERIFY(k->waitForLog("Profile created", 15000));
+        QVERIFY(k->waitForLog("Profile created:", 15000));
 
         k->write("contact add Carol");
         QVERIFY(k->waitForLog("Contact added", 500));
@@ -286,20 +338,19 @@ private slots:
     void test_profile_delete()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("init 1");
-        QVERIFY(k->waitForLog("Container initialized", 15000));
+        QVERIFY(k->waitForLog("Container created at", 15000));
         k->write("profile create pw5 DeleteMe");
-        QVERIFY(k->waitForLog("Profile created", 15000));
+        QVERIFY(k->waitForLog("Profile created:", 15000));
 
         k->clear();
         k->write("profile delete");
+        QVERIFY(k->waitForLog("Securely delete this profile? This cannot be undone (y/N)", 500));
+        k->write("y");
         QVERIFY(k->waitForLog("Profile deleted and securely wiped", 5000));
-
-        k->clear();
-        k->write("profile current");
-        QVERIFY(k->waitForLog("No profile is currently open", 500));
+        QVERIFY(k->waitForLog("main (no profile) >", 500));
 
         QVERIFY(k->noErrorLogs());
         QVERIFY(k->exitApp());
@@ -312,7 +363,7 @@ private slots:
     void test_no_profile_guard()
     {
         Kotik* k = new Kotik(this);
-        QVERIFY(k->waitForLog("main>", 5000));
+        QVERIFY(k->waitForLog("main (no profile) >", 5000));
 
         k->write("contact list");
         QVERIFY(k->waitForLog("No profile open", 500));
@@ -343,5 +394,5 @@ private slots:
     }
 };
 
-QTEST_MAIN(CliIntegrationTest)
-#include "cli_integration_tests.moc"
+QTEST_MAIN(ConsoleIntegrationTest)
+#include "console_integration_tests.moc"

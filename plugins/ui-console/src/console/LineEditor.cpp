@@ -229,7 +229,7 @@ QString LineEditor::readLine(const QString& prompt, const QStringList& completio
         case Terminal::Key::CtrlD:
             if( m_buffer.isEmpty() ) {
                 m_term.writeLine();
-                return QString(); // null string signals EOF
+                return QString("exit");
             }
             // Non-empty line: treat as Delete
             if( m_cursor < m_buffer.size() ) {

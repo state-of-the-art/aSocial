@@ -16,7 +16,13 @@
 // Author: Rabit (@rabits)
 
 #include "plugin.h"
+#include "GuiBackend.h"
 #include "Log.h"
+
+#include <QCoreApplication>
+#include <QDir>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
 
 Plugin* Plugin::s_pInstance = nullptr;
 
@@ -32,7 +38,6 @@ QString Plugin::version() const
 
 PluginPermissions Plugin::requiredPermissions() const
 {
-    // GUI needs full user-facing access (same as CLI for now)
     return PluginPermission::SettingsRead | PluginPermission::SettingsWrite | PluginPermission::ContainerRead
            | PluginPermission::ContainerWrite | PluginPermission::ProfileRead | PluginPermission::ProfileWrite
            | PluginPermission::ProfileDelete | PluginPermission::ProfileExport | PluginPermission::ProfileImport
@@ -53,14 +58,11 @@ bool Plugin::init()
     LOG_D() << __func__;
     Plugin::s_pInstance = this;
 
-    // TODO: Init here
+    m_backend = new GuiBackend(this);
 
     LOG_D() << "init() done";
-
     setInitialized(true);
-
     emit appNotice(this->name().append(" initialized"));
-
     return true;
 }
 
@@ -70,14 +72,15 @@ bool Plugin::deinit()
         return true;
     LOG_D() << __func__;
 
-    // TODO: Deinit here
+    stopUI();
+
+    delete m_backend;
+    m_backend = nullptr;
 
     Plugin::s_pInstance = nullptr;
-
     emit appNotice(this->name().append(" deinitialized"));
     LOG_D() << "deinit() done";
     setInitialized(false);
-
     return true;
 }
 
@@ -91,12 +94,69 @@ bool Plugin::startUI()
 {
     LOG_D() << __func__;
 
+    if( !m_backend || !m_core ) {
+        LOG_W() << "Cannot start UI: backend or core not available";
+        return false;
+    }
+
+    m_backend->setCore(m_core);
+
+    m_engine = new QQmlApplicationEngine(this);
+
+    m_engine->rootContext()->setContextProperty(QStringLiteral("Backend"), m_backend);
+
+    // Resolve QML path: try plugin-relative first, then appdir-relative
+    QString qmlDir;
+    QString appDir = QCoreApplication::applicationDirPath();
+
+    // In AppImage, QML lives alongside the binary in qml/
+    QStringList searchPaths = {
+        //appDir + QStringLiteral("/qml/ui-gui"),
+        //appDir + QStringLiteral("/../share/asocial/qml/ui-gui"),
+        QStringLiteral(":/asocial/plugin/ui-gui/qml"),
+    };
+
+    for( const QString& path : searchPaths ) {
+        if( QDir(path).exists(QStringLiteral("Main.qml")) ) {
+            qmlDir = path;
+            break;
+        }
+    }
+
+    if( qmlDir.isEmpty() ) {
+        // Fallback: load from embedded QRC
+        LOG_C() << "Failed to find Main.qml in provided search paths";
+        delete m_engine;
+        m_engine = nullptr;
+        return false;
+    }
+
+    LOG_D() << "Loading QML from:" << qmlDir;
+    m_engine->load(QUrl::fromLocalFile(qmlDir + QStringLiteral("/Main.qml")));
+
+    if( m_engine->rootObjects().isEmpty() ) {
+        LOG_W() << "Failed to load QML UI";
+        delete m_engine;
+        m_engine = nullptr;
+        return false;
+    }
+
+    LOG_D() << "Qt Quick UI started successfully";
     return true;
 }
 
 bool Plugin::stopUI()
 {
     LOG_D() << __func__;
+
+    if( m_engine ) {
+        delete m_engine;
+        m_engine = nullptr;
+
+        // Destroying backend after QML engine is stopped
+        delete m_backend;
+        m_backend = nullptr;
+    }
 
     return true;
 }

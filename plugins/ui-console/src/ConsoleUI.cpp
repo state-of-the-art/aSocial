@@ -26,10 +26,15 @@
 #include "console/Style.h"
 #include "console/Terminal.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QMetaObject>
 #include <QStorageInfo>
+
+#include <cstdlib>
+#include <exception>
 
 ConsoleUI::ConsoleUI() = default;
 ConsoleUI::~ConsoleUI() = default;
@@ -292,7 +297,7 @@ void ConsoleUI::buildProfileCommands()
             if( ok ) {
                 auto prof = m_core->getProfile();
                 m_spinner->stop(true, QStringLiteral("Profile opened: %1").arg(prof.displayName()));
-                writeInfo(*m_term, QStringLiteral("ID: %1").arg(prof.uid()));
+                writeInfo(*m_term, QStringLiteral("UID: %1").arg(prof.uid()));
                 writeInfo(*m_term, QStringLiteral("Created: %1").arg(tsIso(prof.createdAt())));
             } else {
                 m_spinner
@@ -336,7 +341,7 @@ void ConsoleUI::buildProfileCommands()
             if( ok ) {
                 auto prof = m_core->getProfile();
                 m_spinner->stop(true, QStringLiteral("Profile created: %1").arg(prof.displayName()));
-                writeInfo(*m_term, QStringLiteral("ID: %1").arg(prof.uid()));
+                writeInfo(*m_term, QStringLiteral("UID: %1").arg(prof.uid()));
             } else {
                 m_spinner->stop(false, QStringLiteral("Failed to create profile."));
             }
@@ -354,7 +359,7 @@ void ConsoleUI::buildProfileCommands()
             }
             auto prof = m_core->getProfile();
             m_term->writeLine(QStringLiteral("  %1Current profile:%2").arg(Style::bold(), Style::reset()));
-            writeInfo(*m_term, QStringLiteral("ID:      %1").arg(prof.uid()));
+            writeInfo(*m_term, QStringLiteral("UID:     %1").arg(prof.uid()));
             writeInfo(*m_term, QStringLiteral("Name:    %1").arg(prof.displayName()));
             writeInfo(*m_term, QStringLiteral("Bio:     %1").arg(prof.bio()));
             writeInfo(*m_term, QStringLiteral("Created: %1").arg(tsIso(prof.createdAt())));
@@ -530,7 +535,7 @@ void ConsoleUI::buildPersonaCommands()
                 QString def = p.isDefault() ? QStringLiteral(" %1[default]%2").arg(Style::muted(), Style::reset())
                                             : QString();
                 m_term->writeLine(
-                    QStringLiteral("    %1%2%3  %4id=%5%6")
+                    QStringLiteral("    %1%2%3  %4uid=%5%6")
                         .arg(marker, Style::bold(), p.displayName(), Style::muted(), p.uid(), Style::reset())
                     + def);
             }
@@ -555,7 +560,7 @@ void ConsoleUI::buildPersonaCommands()
                 writeErr(*m_term, QStringLiteral("Failed to create persona."));
                 return;
             }
-            writeOk(*m_term, QStringLiteral("Persona created: %1 (id=%2)").arg(name, persona.uid()));
+            writeOk(*m_term, QStringLiteral("Persona created: %1 (uid=%2)").arg(name, persona.uid()));
         });
 
     m_router->addCommand(
@@ -618,7 +623,7 @@ void ConsoleUI::buildPersonaCommands()
                 return;
             }
             m_term->writeLine(QStringLiteral("  %1Persona:%2").arg(Style::bold(), Style::reset()));
-            writeInfo(*m_term, QStringLiteral("ID:      %1").arg(p.uid()));
+            writeInfo(*m_term, QStringLiteral("UID:     %1").arg(p.uid()));
             writeInfo(*m_term, QStringLiteral("Name:    %1").arg(p.displayName()));
             writeInfo(*m_term, QStringLiteral("Bio:     %1").arg(p.bio()));
             writeInfo(
@@ -728,7 +733,7 @@ void ConsoleUI::buildContactCommands()
             m_term->writeLine(
                 QStringLiteral("  %1Contacts (%2):%3").arg(Style::bold()).arg(contacts.size()).arg(Style::reset()));
             for( const auto& c : contacts ) {
-                m_term->writeLine(QStringLiteral("    %1%2%3  trust=%4  %5id=%6%7")
+                m_term->writeLine(QStringLiteral("    %1%2%3  trust=%4  %5uid=%6%7")
                                       .arg(Style::bold(), c.displayName(), Style::reset())
                                       .arg(static_cast<int>(c.trustLevel()))
                                       .arg(Style::muted(), c.uid(), Style::reset()));
@@ -754,7 +759,7 @@ void ConsoleUI::buildContactCommands()
                 writeErr(*m_term, QStringLiteral("Failed to add contact."));
                 return;
             }
-            writeOk(*m_term, QStringLiteral("Contact added: %1 (id=%2)").arg(name, contact.uid()));
+            writeOk(*m_term, QStringLiteral("Contact added: %1 (uid=%2)").arg(name, contact.uid()));
         });
 
     m_router->addCommand(
@@ -777,10 +782,11 @@ void ConsoleUI::buildContactCommands()
                 return;
             }
             m_term->writeLine(QStringLiteral("  %1Contact:%2").arg(Style::bold(), Style::reset()));
-            writeInfo(*m_term, QStringLiteral("ID:    %1").arg(c.uid()));
+            writeInfo(*m_term, QStringLiteral("UID:   %1").arg(c.uid()));
             writeInfo(*m_term, QStringLiteral("Name:  %1").arg(c.displayName()));
             writeInfo(*m_term, QStringLiteral("Trust: %1").arg(static_cast<int>(c.trustLevel())));
-            writeInfo(*m_term, QStringLiteral("Notes: %1").arg(c.notes()));
+            if( c.hasNotes() )
+                writeInfo(*m_term, QStringLiteral("Notes: %1").arg(c.notes()));
             writeInfo(
                 *m_term,
                 QStringLiteral("Key:   %1")
@@ -885,7 +891,7 @@ void ConsoleUI::buildContactCommands()
                 QStringLiteral("  %1Found %2 contact(s):%3").arg(Style::bold()).arg(results.size()).arg(Style::reset()));
             for( const auto& c : results )
                 m_term->writeLine(
-                    QStringLiteral("    %1%2%3  %4id=%5%6")
+                    QStringLiteral("    %1%2%3  %4uid=%5%6")
                         .arg(Style::bold(), c.displayName(), Style::reset(), Style::muted(), c.uid(), Style::reset()));
         });
 }
@@ -917,7 +923,7 @@ void ConsoleUI::buildGroupCommands()
                 QStringLiteral("  %1Groups (%2):%3").arg(Style::bold()).arg(groups.size()).arg(Style::reset()));
             for( const auto& g : groups )
                 m_term->writeLine(
-                    QStringLiteral("    %1%2%3  %4id=%5%6")
+                    QStringLiteral("    %1%2%3  %4uid=%5%6")
                         .arg(Style::bold(), g.name(), Style::reset(), Style::muted(), g.uid(), Style::reset()));
         });
 
@@ -940,7 +946,7 @@ void ConsoleUI::buildGroupCommands()
                 writeErr(*m_term, QStringLiteral("Failed to create group."));
                 return;
             }
-            writeOk(*m_term, QStringLiteral("Group created: %1 (id=%2)").arg(name, group.uid()));
+            writeOk(*m_term, QStringLiteral("Group created: %1 (uid=%2)").arg(name, group.uid()));
         });
 
     m_router->addCommand(
@@ -964,7 +970,7 @@ void ConsoleUI::buildGroupCommands()
             }
             auto members = m_core->listGroupMembers(g.uid());
             m_term->writeLine(QStringLiteral("  %1Group:%2").arg(Style::bold(), Style::reset()));
-            writeInfo(*m_term, QStringLiteral("ID:      %1").arg(g.uid()));
+            writeInfo(*m_term, QStringLiteral("UID:     %1").arg(g.uid()));
             writeInfo(*m_term, QStringLiteral("Name:    %1").arg(g.name()));
             writeInfo(*m_term, QStringLiteral("Desc:    %1").arg(g.description()));
             writeInfo(*m_term, QStringLiteral("Members: %1").arg(members.size()));
@@ -1120,7 +1126,7 @@ void ConsoleUI::buildMessageCommands()
             for( const auto& m : msgs ) {
                 QString sender = m.senderContactUid();
                 QString bodyPreview = m.body().left(60);
-                m_term->writeLine(QStringLiteral("    %1[%2]%3 %4 %5%6%7  %8id=%9%10")
+                m_term->writeLine(QStringLiteral("    %1[%2]%3 %4 %5%6%7  %8uid=%9%10")
                                       .arg(
                                           Style::muted(),
                                           tsIso(m.createdAt()),
@@ -1157,7 +1163,7 @@ void ConsoleUI::buildMessageCommands()
                 writeErr(*m_term, QStringLiteral("Failed to send message."));
                 return;
             }
-            writeOk(*m_term, QStringLiteral("Message sent (id=%1)").arg(msg.uid()));
+            writeOk(*m_term, QStringLiteral("Message sent (uid=%1)").arg(msg.uid()));
         });
 
     m_router->addCommand(
@@ -1181,7 +1187,7 @@ void ConsoleUI::buildMessageCommands()
             }
             QString sender = m.senderContactUid();
             m_term->writeLine(QStringLiteral("  %1Message:%2").arg(Style::bold(), Style::reset()));
-            writeInfo(*m_term, QStringLiteral("ID:     %1").arg(m.uid()));
+            writeInfo(*m_term, QStringLiteral("UID:    %1").arg(m.uid()));
             writeInfo(*m_term, QStringLiteral("Thread: %1").arg(m.threadUid()));
             writeInfo(*m_term, QStringLiteral("From:   %1").arg(sender.isEmpty() ? QStringLiteral("self") : sender));
             writeInfo(*m_term, QStringLiteral("To:     %1:%2").arg(m.recipientType(), m.recipientUid()));
@@ -1239,7 +1245,7 @@ void ConsoleUI::buildEventCommands()
             for( const auto& e : events ) {
                 QString dateStr = e.hasStarted() ? tsIso(e.started()) : QString();
                 m_term->writeLine(
-                    QStringLiteral("    %1[%2]%3 %4  %5id=%6%7")
+                    QStringLiteral("    %1[%2]%3 %4  %5uid=%6%7")
                         .arg(Style::muted(), dateStr, Style::reset(), e.title(), Style::muted(), e.uid(), Style::reset()));
             }
         });
@@ -1266,7 +1272,7 @@ void ConsoleUI::buildEventCommands()
                 writeErr(*m_term, QStringLiteral("Failed to create event."));
                 return;
             }
-            writeOk(*m_term, QStringLiteral("Event created: %1 (id=%2)").arg(title, event.uid()));
+            writeOk(*m_term, QStringLiteral("Event created: %1 (uid=%2)").arg(title, event.uid()));
         });
 
     m_router->addCommand(
@@ -1289,7 +1295,7 @@ void ConsoleUI::buildEventCommands()
                 return;
             }
             m_term->writeLine(QStringLiteral("  %1Event:%2").arg(Style::bold(), Style::reset()));
-            writeInfo(*m_term, QStringLiteral("ID:       %1").arg(e.uid()));
+            writeInfo(*m_term, QStringLiteral("UID:      %1").arg(e.uid()));
             writeInfo(*m_term, QStringLiteral("Title:    %1").arg(e.title()));
             writeInfo(*m_term, QStringLiteral("Date:     %1").arg(e.hasStarted() ? tsIso(e.started()) : QString()));
             writeInfo(*m_term, QStringLiteral("Location: %1").arg(e.location()));
@@ -1475,62 +1481,106 @@ void ConsoleUI::flushLogQueue()
 
 void ConsoleUI::run()
 {
-    m_term = std::make_unique<Terminal>();
-    m_editor = std::make_unique<LineEditor>(*m_term);
-    m_prompt = std::make_unique<Prompt>(*m_term);
-    m_spinner = std::make_unique<Spinner>(*m_term);
+    try {
+        m_term = std::make_unique<Terminal>();
+        m_editor = std::make_unique<LineEditor>(*m_term);
+        m_prompt = std::make_unique<Prompt>(*m_term);
+        m_spinner = std::make_unique<Spinner>(*m_term);
 
-    m_term->enableRawMode();
-    showBanner();
+        m_term->enableRawMode();
+        showBanner();
 
-    for( ;; ) {
-        flushLogQueue();
+        for( ;; ) {
+            flushLogQueue();
 
-        QString prompt = promptText() + QStringLiteral(" ");
-        QStringList completions = m_router->completions(QString());
+            QString prompt = promptText() + QStringLiteral(" ");
+            QStringList completions = m_router->completions(QString());
 
-        QString line = m_editor->readLine(prompt, completions);
+            QString line = m_editor->readLine(prompt, completions);
 
-        if( line.isNull() ) {
-            // EOF (Ctrl-D on empty line)
-            m_term->writeLine(QStringLiteral("Closing App..."));
-            break;
+            line = line.trimmed();
+            if( line.isEmpty() )
+                continue;
+
+            m_editor->addToHistory(line);
+
+            // Handle "help" directly so we can pass the terminal
+            if( line == QLatin1String("help") ) {
+                m_router->printHelp(*m_term);
+                continue;
+            }
+
+            auto result = m_router->dispatch(line);
+
+            switch( result ) {
+            case CommandRouter::Result::Executed:
+            case CommandRouter::Result::NavigatedMenu:
+            case CommandRouter::Result::NavigatedUp:
+            case CommandRouter::Result::Empty:
+                continue;
+
+            case CommandRouter::Result::Exit:
+                m_term->writeLine(QStringLiteral("  Closing App..."));
+                m_term->disableRawMode();
+                m_core->exit();
+                return;
+
+            case CommandRouter::Result::NotFound:
+                m_term->writeLine(QStringLiteral("  %1Unknown command: %2%3. Type 'help' for available commands.")
+                                      .arg(Style::warning(), line, Style::reset()));
+                continue;
+            }
         }
 
-        line = line.trimmed();
-        if( line.isEmpty() )
-            continue;
-
-        m_editor->addToHistory(line);
-
-        // Handle "help" directly so we can pass the terminal
-        if( line == QLatin1String("help") ) {
-            m_router->printHelp(*m_term);
-            continue;
-        }
-
-        auto result = m_router->dispatch(line);
-
-        switch( result ) {
-        case CommandRouter::Result::Executed:
-        case CommandRouter::Result::NavigatedMenu:
-        case CommandRouter::Result::NavigatedUp:
-        case CommandRouter::Result::Empty:
-            break;
-
-        case CommandRouter::Result::Exit:
-            m_term->writeLine(QStringLiteral("  Closing App..."));
+        m_term->disableRawMode();
+        m_core->exit();
+    } catch( const std::bad_optional_access& ex ) {
+        if( m_term ) {
             m_term->disableRawMode();
-            m_core->exit();
-            return;
-
-        case CommandRouter::Result::NotFound:
-            m_term->writeLine(QStringLiteral("  %1Unknown command: %2%3. Type 'help' for available commands.")
-                                  .arg(Style::warning(), line, Style::reset()));
-            break;
+            writeErr(*m_term, QStringLiteral("Fatal error: bad optional access (%1)").arg(QString::fromLatin1(ex.what())));
+        }
+        try {
+            if( m_core )
+                m_core->closeProfile(); // Best-effort flush
+        } catch( ... ) {
+        }
+        if( QCoreApplication::instance() ) {
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(), []() { QCoreApplication::exit(EXIT_FAILURE); }, Qt::QueuedConnection);
+        } else {
+            QCoreApplication::exit(EXIT_FAILURE);
+        }
+    } catch( const std::exception& ex ) {
+        if( m_term ) {
+            m_term->disableRawMode();
+            writeErr(*m_term, QStringLiteral("Fatal error: %1").arg(QString::fromLatin1(ex.what())));
+        }
+        try {
+            if( m_core )
+                m_core->closeProfile(); // Best-effort flush
+        } catch( ... ) {
+        }
+        if( QCoreApplication::instance() ) {
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(), []() { QCoreApplication::exit(EXIT_FAILURE); }, Qt::QueuedConnection);
+        } else {
+            QCoreApplication::exit(EXIT_FAILURE);
+        }
+    } catch( ... ) {
+        if( m_term ) {
+            m_term->disableRawMode();
+            writeErr(*m_term, QStringLiteral("Fatal error: unknown exception"));
+        }
+        try {
+            if( m_core )
+                m_core->closeProfile(); // Best-effort flush
+        } catch( ... ) {
+        }
+        if( QCoreApplication::instance() ) {
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(), []() { QCoreApplication::exit(EXIT_FAILURE); }, Qt::QueuedConnection);
+        } else {
+            QCoreApplication::exit(EXIT_FAILURE);
         }
     }
-
-    m_term->disableRawMode();
-    m_core->exit();
 }

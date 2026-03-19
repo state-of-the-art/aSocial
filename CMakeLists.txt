@@ -44,4 +44,12 @@ qt_add_executable(${PROJECT_NAME} ${Execution_CPP} ${Execution_H})
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core asocial_proto asocial_log)
 target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
+# Allow GUI libs to be integrated
+if(NOT ASOCIAL_CLI_ONLY)
+  find_package(Qt6 REQUIRED COMPONENTS Gui)
+  target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Gui)
+else()
+  add_definitions(-DASOCIAL_CLI_ONLY)
+endif()
+
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${Execution_TS})

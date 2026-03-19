@@ -20,6 +20,9 @@ message Group
 
     string name = 5;
     string description = 6;
+
+    // Display colour in "#RRGGBB" hex format for the group ring on the persona graph
+    optional string color = 7;
 }
 
 // N:M join between Group and Contact.

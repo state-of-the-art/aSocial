@@ -17,26 +17,37 @@
 
 #include "Kotik.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <QDateTime>
 #include <QEventLoop>
+#include <QRegularExpression>
+#include <QTextStream>
 #include <QTimer>
 
-Kotik::Kotik(QObject* parent)
+// Strip ANSI escape sequences (colors, cursor movement, etc.) from a log line
+static QString stripAnsiSequences(const QString& input)
+{
+    // Matches ESC [ ... command (CSI sequences)
+    static const QRegularExpression ansiRe(QStringLiteral(R"(\x1B\[[0-9;?]*[ -/]*[@-~])"));
+    return QString(input).remove(ansiRe);
+}
+
+Kotik::Kotik(QObject* parent, bool start)
     : QObject(parent)
     , m_process(new QProcess(this))
 {
     Q_ASSERT(m_workdir.isValid());
 
     m_process->setProgram("./aSocial-x86_64.AppImage");
-    m_process->setArguments({"--appimage-extract-and-run", "-w", m_workdir.path()});
 
     connect(m_process, &QProcess::finished, this, &Kotik::onProcessFinished);
     connect(m_process, &QProcess::errorOccurred, this, &Kotik::onProcessErrorOccurred);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &Kotik::onReadyReadStandardOutput);
     connect(m_process, &QProcess::readyReadStandardError, this, &Kotik::onReadyReadStandardError);
 
-    m_process->start();
+    if( start )
+        this->start();
 }
 
 Kotik::~Kotik()
@@ -48,6 +59,46 @@ Kotik::~Kotik()
             m_process->waitForFinished(1000);
         }
     }
+}
+
+void Kotik::setWorkdir(const QString workdir)
+{
+    m_workdir_path = workdir;
+}
+
+void Kotik::setEnv(const QList<QPair<QString, QString>> newEnv)
+{
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    for( auto item : newEnv ) {
+        env.insert(item.first, item.second);
+    }
+    m_process->setProcessEnvironment(env);
+}
+
+void Kotik::start()
+{
+    this->start({"--no-gui"});
+}
+
+void Kotik::start(const QStringList& arguments)
+{
+    QStringList args = {"--appimage-extract-and-run", "-w", workdirPath()};
+    args.append(arguments);
+    m_process->setArguments(args);
+    m_process->start();
+    m_process_id = m_process->processId();
+    QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
+    fprintf(stderr, "[%s] ------- PROCESS %lld STARTED\n", qPrintable(timestamp), m_process_id);
+}
+
+void Kotik::stop() const
+{
+    m_process->terminate();
+}
+
+void Kotik::kill() const
+{
+    m_process->kill();
 }
 
 void Kotik::write(const QString& command)
@@ -63,12 +114,16 @@ bool Kotik::exitApp(int timeoutMs)
 
 QString Kotik::workdirPath() const
 {
-    return m_workdir.path();
+    if( m_workdir_path.isEmpty() )
+        return m_workdir.path();
+    return m_workdir_path;
 }
 
 QString Kotik::workdirFilePath(const QString& fileName) const
 {
-    return m_workdir.filePath(fileName);
+    if( m_workdir_path.isEmpty() )
+        return m_workdir.filePath(fileName);
+    return QDir(m_workdir_path).filePath(fileName);
 }
 
 int Kotik::exitCode() const
@@ -80,7 +135,12 @@ void Kotik::onProcessErrorOccurred(QProcess::ProcessError error)
 {
     Q_UNUSED(error);
     QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
-    fprintf(stderr, "[%s] ------- PROCESS ERROR: %s\n", qPrintable(timestamp), qPrintable(m_process->errorString()));
+    fprintf(
+        stderr,
+        "[%s] ------- PROCESS %lld ERROR: %s\n",
+        qPrintable(timestamp),
+        m_process_id,
+        qPrintable(m_process->errorString()));
     fflush(stderr);
 }
 
@@ -88,7 +148,7 @@ void Kotik::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     Q_UNUSED(exitStatus);
     QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
-    fprintf(stderr, "[%s] ------- PROCESS FINISHED: %d\n", qPrintable(timestamp), exitCode);
+    fprintf(stderr, "[%s] ------- PROCESS %lld FINISHED: %d\n", qPrintable(timestamp), m_process_id, exitCode);
     fflush(stderr);
 }
 
@@ -108,6 +168,7 @@ void Kotik::processData(const QByteArray& data, QString& partialBuffer, bool isS
         return;
 
     QString chunk = QString::fromUtf8(data);
+    chunk = stripAnsiSequences(chunk);
     chunk.replace("\r\n", "\n").replace('\r', '\n');
     partialBuffer += chunk;
 
@@ -121,6 +182,7 @@ void Kotik::processData(const QByteArray& data, QString& partialBuffer, bool isS
     }
 
     for( QString line : newLines ) {
+        line = stripAnsiSequences(line);
         if( line.trimmed().isEmpty() )
             continue;
 
@@ -195,6 +257,104 @@ bool Kotik::waitForLog(const QRegularExpression& regex, int timeoutMs)
     loop.exec();
 
     return contains(regex);
+}
+
+bool Kotik::findValuesImpl(const QString& pattern, const QVector<QString*>& outs)
+{
+    if( std::any_of(outs.cbegin(), outs.cend(), [](QString* p) { return p == nullptr; }) )
+        return false;
+
+    // Split pattern by literal "%s" tokens into required parts around the captures.
+    // Example: "Bob (id=%s)" -> ["Bob (id=", ")"] with 1 capture.
+    QStringList parts;
+    QString current;
+    int i = 0;
+    while( i < pattern.size() ) {
+        if( i + 1 < pattern.size() && pattern[i] == '%' && pattern[i + 1] == 's' ) {
+            parts << current;
+            current.clear();
+            i += 2;
+        } else {
+            current.append(pattern[i]);
+            i++;
+        }
+    }
+    parts << current;
+
+    const int expectedCaptures = parts.size() - 1;
+    if( expectedCaptures != outs.size() )
+        return false;
+
+    auto extractFromText = [&](const QString& text, QVector<QString>& capturedOut) -> bool {
+        if( text.isNull() )
+            return false;
+
+        capturedOut.fill(QString(), outs.size());
+
+        const QString& prefix = parts.front();
+        if( prefix.isEmpty() ) {
+            int cur = 0;
+            for( int idx = 0; idx < outs.size(); idx++ ) {
+                const QString& nextLiteral = parts[idx + 1];
+                const int nextPos = text.indexOf(nextLiteral, cur);
+                if( nextPos < 0 )
+                    return false;
+                capturedOut[idx] = text.mid(cur, nextPos - cur);
+                cur = nextPos + nextLiteral.size();
+            }
+            return true;
+        }
+
+        int startPos = text.indexOf(prefix, 0);
+        while( startPos >= 0 ) {
+            int cur = startPos + prefix.size();
+            bool ok = true;
+            for( int idx = 0; idx < outs.size(); idx++ ) {
+                const QString& nextLiteral = parts[idx + 1];
+                const int nextPos = text.indexOf(nextLiteral, cur);
+                if( nextPos < 0 ) {
+                    ok = false;
+                    break;
+                }
+                capturedOut[idx] = text.mid(cur, nextPos - cur);
+                cur = nextPos + nextLiteral.size();
+            }
+            if( ok )
+                return true;
+
+            startPos = text.indexOf(prefix, startPos + 1);
+        }
+        return false;
+    };
+
+    auto tryScanNow = [&]() -> bool {
+        for( const QString& line : m_lines ) {
+            QVector<QString> captured;
+            if( extractFromText(line, captured) ) {
+                for( int idx = 0; idx < outs.size(); idx++ )
+                    *outs[idx] = captured[idx];
+                return true;
+            }
+        }
+
+        QVector<QString> captured;
+        if( extractFromText(m_partialStdout, captured) ) {
+            for( int idx = 0; idx < outs.size(); idx++ )
+                *outs[idx] = captured[idx];
+            return true;
+        }
+
+        captured.clear();
+        if( extractFromText(m_partialStderr, captured) ) {
+            for( int idx = 0; idx < outs.size(); idx++ )
+                *outs[idx] = captured[idx];
+            return true;
+        }
+
+        return false;
+    };
+
+    return tryScanNow();
 }
 
 bool Kotik::noErrorLogs() const

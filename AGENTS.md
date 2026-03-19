@@ -31,6 +31,8 @@ Plugins are:
 * VFS - Encrypted Virtual filesystem for storage and communication between aSocial nodes. Need to
  be secure and follow plausable deniability.
 * UI - shows the UI for the user. Separated plugin to allow to run aSocial as a headless service.
+  Three UI plugins exist: `ui-gui` (Qt Quick rich GUI), `ui-console` (interactive REPL),
+  `ui-cmd` (non-interactive CLI for scripting).
 * Storage - enables user to keep files. Regular ones are just storing on disk, advanced ones could
  utilize cloud, encrypt the files on disk or use other ways to keep the files available. In case
  file can't be stored on the system itself - there should be a preview available: small thumbnail
@@ -91,12 +93,14 @@ pp/<key>                                -> ProfileParam
 
 Protobuf specification files live in `libs/asocial_proto/proto/asocial/v1/`:
 
-* `profile.proto`  – Profile and Persona types
-* `contact.proto`  – Contact (known peer)
-* `group.proto`    – Group and GroupMember
-* `message.proto`  – Message / thread
-* `event.proto`    – Timeline events
-* `params.proto`   – Per-profile key-value settings
+* `profile.proto`       – Profile and Persona types
+* `contact.proto`       – Contact (known peer) with avatar, birthday,
+                          deathday, relationship_type, parent_contact_uid
+* `group.proto`         – Group (with display colour) and GroupMember
+* `message.proto`       – Message with Markdown body, content_type,
+                          MessageAttachment (filename, mime, data, thumbnail), is_read
+* `event.proto`         – Timeline events with event_type (point/range), colour, category
+* `profile_param.proto` – Per-profile key-value settings
 
 C++ types are generated at build time by `qt_add_protobuf` into
 `${CMAKE_BINARY_DIR}/proto/asocial/v1/*.qpb.h` via the shared
@@ -104,6 +108,47 @@ C++ types are generated at build time by `qt_add_protobuf` into
 types directly through CoreInterface — no QVariantMap conversion.
 Factory methods (`create*`) return populated but **unsaved** objects;
 callers must call the corresponding `store*` method to persist.
+
+## GUI Interface (ui-gui)
+
+The Qt Quick GUI plugin (`plugins/ui-gui/`) provides a rich graphical interface
+designed for both desktop (mouse) and mobile (touch) use.
+
+### Architecture
+
+* **GuiBackend** (`src/GuiBackend.h/cpp`) – QML singleton that bridges all
+  CoreInterface operations to QML via `Q_INVOKABLE` methods returning
+  `QVariantMap` / `QVariantList`. Temporary `QByteArray` buffers holding
+  sensitive data are securely wiped with random bytes before deallocation.
+* **Plugin** (`src/plugin.h/cpp`) – Implements `UiPluginInterface`.
+  `startUI()` creates a `QQmlApplicationEngine` and loads `Main.qml`.
+  The `GuiBackend` singleton is injected via `rootContext()->setContextProperty`.
+* **QML files** live in `qml/ui-gui/` and are embedded into the plugin and copied
+  to the build directory
+
+### Interaction Model
+
+* **Desktop**: mouse wheel / Ctrl+scroll to zoom the persona graph and timeline.
+  Right-click shows the radial context menu; left-click executes the default action.
+* **Android**: pinch to zoom, long-press shows the radial menu, short-tap
+  executes the default action.
+* **Radial menu (context-aware)**: Every visual element in the scene may declare a
+  `property var contextActions: [...]` containing its own action descriptors.
+  When the user right-clicks (desktop) or long-presses (Android), the
+  RadialMenu hit-tests the item tree at that point via recursive
+  `childAt()` + parent-chain walk, collecting `contextActions` from every
+  ancestor layer. The result is a merged, de-duplicated list ordered
+  most-specific-first (topmost hit child) to least-specific (background).
+  Each action object carries `{label, icon, action, section, data, handler}`.
+  `section` visually groups and colour-codes the wedges; `handler(data)` is
+  called when the user picks a wedge. Long-press on a wedge stores that
+  action as the default left-click action for the section in profile params.
+* **Day/night background**: animated gradient shifts with wall-clock time,
+  showing sun (day), moon + stars (night), with smooth transitions.
+
+### Additional Qt Dependencies
+
+`Qt::Quick`, `Qt::QuickControls2`, `Qt::Qml`
 
 ## CLI Interface (ui-cmd)
 

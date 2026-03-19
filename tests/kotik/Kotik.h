@@ -23,6 +23,9 @@
 #include <QRegularExpression>
 #include <QStringList>
 #include <QTemporaryDir>
+#include <QVector>
+
+#include <type_traits>
 
 /**
  * @brief Full lifecycle wrapper for the aSocial CLI process.
@@ -35,8 +38,16 @@ class Kotik : public QObject
     Q_OBJECT
 
 public:
-    explicit Kotik(QObject* parent = nullptr);
+    explicit Kotik(QObject* parent = nullptr, bool start = true);
     ~Kotik();
+
+    void setWorkdir(const QString workdir);
+    const QString getWorkdir() const;
+    void setEnv(const QList<QPair<QString, QString>> newEnv);
+    void start();
+    void start(const QStringList& arguments);
+    void stop() const;
+    void kill() const;
 
     void write(const QString& command);
 
@@ -51,6 +62,19 @@ public:
     bool contains(const QRegularExpression& regex) const;
     bool waitForLog(const QString& substring, int timeoutMs = 10000);
     bool waitForLog(const QRegularExpression& regex, int timeoutMs = 10000);
+
+    /**
+     * @brief Find and extract values from logs using "%s" placeholders.
+     *
+     * Example: `findValues("Bob (id=%s)", &uid)` will find a log line
+     * containing `Bob (id=<anything>)` and assign `<anything>` to `uid`.
+     */
+    template<typename... Outs>
+    bool findValues(const QString& pattern, Outs*... outs)
+    {
+        static_assert((std::is_same_v<Outs, QString> && ...), "findValues expects QString* outputs");
+        return findValuesImpl(pattern, QVector<QString*>{outs...});
+    }
 
     bool noErrorLogs() const;
 
@@ -71,13 +95,16 @@ private slots:
 
 private:
     void processData(const QByteArray& data, QString& partialBuffer, bool isStderr);
+    bool findValuesImpl(const QString& pattern, const QVector<QString*>& outs);
 
     QTemporaryDir m_workdir;
+    QString m_workdir_path;
     QProcess* m_process;
     QStringList m_lines;
     QStringList m_stderrLines;
     QString m_partialStdout;
     QString m_partialStderr;
+    qint64 m_process_id;
 };
 
 #endif // KOTIK_H

@@ -144,7 +144,7 @@ CommandRouter::Result CommandRouter::dispatch(const QString& line)
     if( first == QLatin1String("..") || (first == QLatin1String("exit") && m_current != m_root.get()) ) {
         if( navigateUp() )
             return Result::NavigatedUp;
-        return Result::Exit;
+        return Result::Empty;
     }
     if( first == QLatin1String("exit") || first == QLatin1String("quit") )
         return Result::Exit;

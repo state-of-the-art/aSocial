@@ -64,6 +64,20 @@ Profile data is stored inside an encrypted VFS container (`data.vfs`):
    directly — no QVariantMap conversion.  Factory methods (`create*`) return unsaved objects;
    `store*` persists them.
 
+### GUI (ui-gui)
+
+The default graphical interface is built with Qt Quick and designed for both
+desktop and Android (touch-ready). Features include:
+
+* **Persona connection graph** – central persona surrounded by contacts with
+  trust-level-weighted connection lines and group-coloured rings
+* **Family tree** – parents, siblings and extended family below the persona
+* **Interactive timeline** – zoomable event bar at the bottom of the screen
+* **Radial context menu** – right-click / long-press for context actions
+* **Hamburger menu** – profile management, persona switching, settings
+* **Day/night background** – animated sky that changes with wall-clock time
+* **Markdown messages** – compose and view messages with rich formatting
+
 ### Core features
 
 Basic features of the social platform:
