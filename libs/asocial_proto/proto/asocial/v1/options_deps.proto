@@ -1,0 +1,23 @@
+// Copyright (C) 2026  aSocial Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// Author: Rabit (@rabits)
+
+syntax = "proto3";
+
+package asocial.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// Defines dependencies of the messages
+message DepsConfig
+{
+    // Foreign Key - a field is dependent on another message field, could be a list separated by comma
+    // Example: {fk: "Persona.uid,Group.uid"}
+    optional string fk = 1;
+}
+
+extend google.protobuf.FieldOptions
+{
+    optional DepsConfig deps_config = 50001;
+}

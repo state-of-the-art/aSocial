@@ -36,7 +36,7 @@ for f in $(git diff --name-only origin/master); do
         fi
 
         # Logic files: go, proto, sh
-        if echo "$f" | grep -q '\.\(cpp\|h\|qml\|js\|sh\|cmake\|CMakeLists.txt\)$'; then
+        if echo "$f" | grep -q '\.\(cpp\|h\|qml\|js\|proto\|sh\|cmake\|CMakeLists.txt\)$'; then
             if echo "$f" | fgrep -q '.gen.'; then
                 continue
             fi

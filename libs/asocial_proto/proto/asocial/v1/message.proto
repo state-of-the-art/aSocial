@@ -1,13 +1,14 @@
 // Copyright (C) 2026  aSocial Developers
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// Schema definition for messages / threads.
+
+// Author: Rabit (@rabits)
 
 syntax = "proto3";
 
 package asocial.v1;
 
 import "google/protobuf/timestamp.proto";
+import "asocial/v1/options_deps.proto";
 
 // A single message belonging to a thread.
 message Message
@@ -15,12 +16,12 @@ message Message
     string uid = 1; // UUID
     google.protobuf.Timestamp created_at = 2;
 
-    string persona_uid = 3; // FK -> Persona.uid (author persona)
+    string persona_uid = 3 [(deps_config) = {fk: 'Persona.uid'}];
 
     string thread_uid = 4;         // Logical thread grouping (UUID)
-    string sender_contact_uid = 5; // FK -> Contact.uid (empty = self)
+    string sender_contact_uid = 5 [(deps_config) = {fk: 'Contact.uid'}];
     string recipient_type = 6;     // "contact" | "group"
-    string recipient_uid = 7;      // FK -> Contact.uid or Group.uid
+    string recipient_uid = 7 [(deps_config) = {fk: 'Contact.uid,Group.uid'}];
 
     string body = 8; // Markdown-formatted message body
 

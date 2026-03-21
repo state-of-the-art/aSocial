@@ -1,14 +1,14 @@
 // Copyright (C) 2026  aSocial Developers
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// Schema definition for profile and persona storage.
-// These types map 1:1 to SQLite tables inside the encrypted VFS container.
+
+// Author: Rabit (@rabits)
 
 syntax = "proto3";
 
 package asocial.v1;
 
 import "google/protobuf/timestamp.proto";
+import "asocial/v1/options_deps.proto";
 
 // Root identity stored once per VFS encryption layer.
 message Profile
@@ -30,7 +30,7 @@ message Persona
     google.protobuf.Timestamp created_at = 2;
     google.protobuf.Timestamp updated_at = 3;
 
-    string profile_uid = 4; // FK -> Profile.uid
+    string profile_uid = 4 [(deps_config) = {fk: 'Contact.uid'}];
 
     string display_name = 5;
     string bio = 6;

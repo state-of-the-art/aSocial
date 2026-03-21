@@ -23,7 +23,8 @@ FROM stateoftheartio/qt6:6.10-gcc-aqt
 # * pkg-config - used to get lib dependencies for tox & other plugins
 # * file - used by appimagetool to build the package
 # * protobuf-compiler - to generate qt classes from proto specifications
-RUN sudo apt -qq update && sudo apt -q install -y libgl-dev libvulkan-dev pkg-config file protobuf-compiler \
+# * libprotoc-dev - for custom protoc plugins in asocial_protogen
+RUN sudo apt -qq update && sudo apt -q install -y libgl-dev libvulkan-dev pkg-config file protobuf-compiler libprotoc-dev \
     && sudo apt -qq clean \
     && sudo rm -rf /var/lib/apt/lists/*
 
