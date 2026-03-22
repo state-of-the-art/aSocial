@@ -244,14 +244,25 @@ transmission), receives updates. Stores intermediate already encrypted data in k
 
 ### Frontend
 
-User interface for managing profiles. Main storage is SQLite with Shufflecake-inspired containers
-encryption.
+User interface for managing profiles. Main storage is a protobuf key-value store inside
+Shufflecake-inspired encrypted VFS containers.
+
+### Code Generation
+
+CRUD operations, KV key helpers, validation functions, factory methods and the plugin permission
+system are auto-generated at build time by `protoc-gen-coredb` — a custom protobuf compiler plugin
+that lives in `libs/asocial_proto/libs/asocial_protogen/`.
+
+The generator reads `entity_config` / `deps_config` annotations from the `.proto` files and uses
+`asocial_tpl` — a standalone Jinja2-like template engine (based on Qt 6 Core) — to render C++
+headers. Generated code is compiled into the shared `asocial_proto` library so both Core and
+plugins can use the same types, key schemes and validators without manual boilerplate.
 
 ## 6.2. Storage
 
 For storage, a pair of local databases is used - the built-in unencrypted nosql key-value storage,
-which is necessary to maintain the data transfer service, and the encrypted sql storage for storing
-profile data.
+which is necessary to maintain the data transfer service, and the encrypted protobuf KV storage for
+storing profile data.
 
 ### Key-Value DB
 

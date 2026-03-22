@@ -18,14 +18,13 @@
 cmake_minimum_required(VERSION 3.16)
 cmake_policy(SET CMP0135 NEW)
 
-project(asocial_protogen)
+project(asocial_tpl LANGUAGES CXX)
 
-include(${CMAKE_CURRENT_LIST_DIR}/../../../../common.cmake)
-
-find_package(Protobuf REQUIRED)
+include(${CMAKE_CURRENT_LIST_DIR}/../../common.cmake)
 
 file(GLOB_RECURSE Lib_CPP RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "src/*.cpp")
 file(GLOB_RECURSE Lib_H RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "include/*.h" "src/*.h")
-add_executable(protoc-gen-coredb ${Lib_CPP} ${Lib_H})
-target_include_directories(protoc-gen-coredb PRIVATE "${CMAKE_CURRENT_LIST_DIR}/include")
-target_link_libraries(protoc-gen-coredb PRIVATE Qt::Core protobuf::libprotobuf protobuf::libprotoc asocial_tpl)
+
+add_library(${PROJECT_NAME} SHARED ${Lib_CPP} ${Lib_H})
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt::Core)
+target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

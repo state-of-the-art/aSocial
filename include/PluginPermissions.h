@@ -18,8 +18,7 @@
 #ifndef PLUGINPERMISSIONS_H
 #define PLUGINPERMISSIONS_H
 
-#include <QFlags>
-#include <QStringList>
+#include "asocial/v1/common.coredb.gen.h"
 
 /**
  * @brief Granular capability flags that a plugin may request.
@@ -34,46 +33,46 @@
  * grants SettingsRead during permission checking.
  */
 enum class PluginPermission : quint32 {
-    None = 0,
+    None = static_cast<quint32>(asocial::v1::db::AccessCategory::None),
 
     /** @brief Read system settings (getSetting, listSettings). */
-    SettingsRead = 1 << 0,
+    SettingsRead = static_cast<quint32>(asocial::v1::db::AccessCategory::SettingsRead),
 
     /** @brief Write system settings (setSetting).  Implies SettingsRead. */
-    SettingsWrite = 1 << 1,
+    SettingsWrite = static_cast<quint32>(asocial::v1::db::AccessCategory::SettingsWrite),
 
     /** @brief Query container state (isContainerInitialized, containerPath). */
-    ContainerRead = 1 << 2,
+    ContainerRead = static_cast<quint32>(asocial::v1::db::AccessCategory::ContainerRead),
 
     /** @brief Create or modify VFS containers (createContainer).  Implies ContainerRead. */
-    ContainerWrite = 1 << 3,
+    ContainerWrite = static_cast<quint32>(asocial::v1::db::AccessCategory::ContainerWrite),
 
     /** @brief Read profile data and lifecycle state (getProfile, isProfileOpen, etc.). */
-    ProfileRead = 1 << 4,
+    ProfileRead = static_cast<quint32>(asocial::v1::db::AccessCategory::ProfileRead),
 
     /** @brief Modify profiles (openProfile, createProfile, storeProfile, closeProfile). */
-    ProfileWrite = 1 << 5,
+    ProfileWrite = static_cast<quint32>(asocial::v1::db::AccessCategory::ProfileWrite),
 
     /** @brief Delete the current profile (deleteCurrentProfile). */
-    ProfileDelete = 1 << 6,
+    ProfileDelete = static_cast<quint32>(asocial::v1::db::AccessCategory::ProfileWrite),
 
     /** @brief Export profiles (exportProfile). */
-    ProfileExport = 1 << 7,
+    ProfileExport = static_cast<quint32>(asocial::v1::db::AccessCategory::ExportImport),
 
     /** @brief Import profiles (importProfile). */
-    ProfileImport = 1 << 8,
+    ProfileImport = static_cast<quint32>(asocial::v1::db::AccessCategory::ExportImport),
 
     /** @brief Read entities: personas, contacts, groups, messages, events. */
-    DataRead = 1 << 9,
+    DataRead = static_cast<quint32>(asocial::v1::db::AccessCategory::DataRead),
 
     /** @brief Create, update and delete entities.  Implies DataRead. */
-    DataWrite = 1 << 10,
+    DataWrite = static_cast<quint32>(asocial::v1::db::AccessCategory::DataWrite),
 
     /** @brief Access raw plugin pointers (getDBKV, getDBKVProfile, getVFS). */
-    PluginAccess = 1 << 11,
+    PluginAccess = static_cast<quint32>(asocial::v1::db::AccessCategory::PluginAccess),
 
     /** @brief Control application lifecycle (exit). */
-    AppLifecycle = 1 << 12,
+    AppLifecycle = static_cast<quint32>(asocial::v1::db::AccessCategory::AppLifecycle),
 };
 
 Q_DECLARE_FLAGS(PluginPermissions, PluginPermission)
@@ -135,8 +134,6 @@ inline PluginPermissions expandImpliedPermissions(PluginPermissions perms)
         perms |= PluginPermission::ContainerRead;
     if( perms.testFlag(PluginPermission::DataWrite) )
         perms |= PluginPermission::DataRead;
-    // ProfileWrite does NOT imply ProfileRead automatically — both must be declared
-    // to keep profile-level access explicit for security auditing.
     return perms;
 }
 

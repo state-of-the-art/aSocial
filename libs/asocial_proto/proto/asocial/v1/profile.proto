@@ -13,6 +13,11 @@ import "asocial/v1/options_deps.proto";
 // Root identity stored once per VFS encryption layer.
 message Profile
 {
+    option (entity_config) = {
+        key_prefix: "p"
+        singleton: true
+    };
+
     string uid = 1; // UUID
     google.protobuf.Timestamp created_at = 2;
     google.protobuf.Timestamp updated_at = 3;
@@ -26,11 +31,17 @@ message Profile
 // Every profile has at least one default persona.
 message Persona
 {
+    option (entity_config) = {
+        key_prefix: "a"
+        key_pattern: "{uid}"
+        sort_field: "display_name"
+    };
+
     string uid = 1; // UUID
     google.protobuf.Timestamp created_at = 2;
     google.protobuf.Timestamp updated_at = 3;
 
-    string profile_uid = 4 [(deps_config) = {fk: 'Contact.uid'}];
+    string profile_uid = 4 [(deps_config) = {fk: 'Profile.uid'}];
 
     string display_name = 5;
     string bio = 6;

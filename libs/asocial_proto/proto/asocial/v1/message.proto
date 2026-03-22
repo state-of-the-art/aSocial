@@ -13,6 +13,13 @@ import "asocial/v1/options_deps.proto";
 // A single message belonging to a thread.
 message Message
 {
+    option (entity_config) = {
+        key_prefix: "m"
+        key_pattern: "{persona_uid}/{created_at}/{uid}"
+        persona_scoped: true
+        sort_descending: true
+    };
+
     string uid = 1; // UUID
     google.protobuf.Timestamp created_at = 2;
 

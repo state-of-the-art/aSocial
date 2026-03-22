@@ -21,3 +21,34 @@ extend google.protobuf.FieldOptions
 {
     optional DepsConfig deps_config = 50001;
 }
+
+// Defines storage and CRUD configuration for an entity message.
+// Used by protoc-gen-coredb to generate key helpers, validation,
+// factory functions, and interface methods.
+message EntityConfig
+{
+    // KV key prefix: "p", "a", "c", "g", "gm", "m", "e", "pp"
+    string key_prefix = 1;
+
+    // Key pattern after prefix using field names in braces.
+    // E.g. "{persona_uid}/{uid}" produces key "c/<persona_uid>/<uid>".
+    // Timestamp fields use ISO 8601 "yyyy-MM-ddTHH:mm:ss" in UTC for lexicographic filtering.
+    string key_pattern = 2;
+
+    // Singleton entity (e.g. Profile) - no list/create/delete, only get/store.
+    bool singleton = 3;
+
+    // CRUD list/get/delete operations are scoped to the active persona.
+    bool persona_scoped = 4;
+
+    // Field name used for sorting list results (e.g. "display_name", "name").
+    string sort_field = 5;
+
+    // Sort direction: true = newest/largest first.
+    bool sort_descending = 6;
+}
+
+extend google.protobuf.MessageOptions
+{
+    optional EntityConfig entity_config = 50002;
+}

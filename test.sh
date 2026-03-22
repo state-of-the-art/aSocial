@@ -35,7 +35,9 @@ echo =========== RUNNING UNIT TESTS ===========
 find ./build/plugins -name "DartConfiguration.tcl" -execdir ctest -V \;
 
 echo =========== RUNNING CLI INTEGRATION TESTS ===========
-./build/tests/cli_integration_tests
+for test in ./build/tests/*_integration_tests; do
+    ./$test
+done
 ')"
 
 echo

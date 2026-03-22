@@ -13,6 +13,14 @@ import "asocial/v1/options_deps.proto";
 // A life-event on a persona's timeline.
 message Event
 {
+    option (entity_config) = {
+        key_prefix: "e"
+        key_pattern: "{persona_uid}/{uid}"
+        persona_scoped: true
+        sort_field: "started"
+        sort_descending: true
+    };
+
     string uid = 1; // UUID
     google.protobuf.Timestamp created_at = 2;
     google.protobuf.Timestamp updated_at = 3;

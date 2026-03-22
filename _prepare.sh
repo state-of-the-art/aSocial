@@ -81,7 +81,7 @@ linuxdeploy --verbosity 3 --appdir ./deploy --plugin qt \
 mkdir -p ./deploy/usr/share/asocial/plugins
 for f in `ls ./deploy/usr/lib/libasocial-plugin-*`; do
     name="$(basename "$f")"
-    echo "Linking plugin $name"
+    echo "Create plugin symlink $name"
     ln -s "../../../lib/$name" "./deploy/usr/share/asocial/plugins/$name"
 done
 

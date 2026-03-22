@@ -25,119 +25,8 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QRandomGenerator>
-#include <QUuid>
 
 #include <QtProtobuf/QProtobufJsonSerializer>
-
-#include "asocial/v1/contact.qpb.h"
-#include "asocial/v1/event.qpb.h"
-#include "asocial/v1/group.qpb.h"
-#include "asocial/v1/message.qpb.h"
-#include "asocial/v1/profile.qpb.h"
-#include "asocial/v1/profile_param.qpb.h"
-
-// ---- Key-scheme constants --------------------------------------------------
-// Hierarchical prefix design for efficient range scans in RocksDB:
-//   p                                       -> Profile
-//   a/<persona_uid>                         -> Persona
-//   c/<persona_uid>/<contact_uid>           -> Contact
-//   g/<persona_uid>/<group_uid>             -> Group
-//   gm/<group_uid>/<contact_uid>            -> GroupMember
-//   m/<persona_uid>/<created_ms>/<msg_uid>  -> Message (time-ordered)
-//   e/<persona_uid>/<event_uid>             -> Event
-//   pp/<key>                                -> ProfileParam
-namespace KV {
-static const QString PROFILE = QStringLiteral("p");
-static const QString PERSONA_PFX = QStringLiteral("a/");
-static const QString CONTACT_PFX = QStringLiteral("c/");
-static const QString GROUP_PFX = QStringLiteral("g/");
-static const QString GROUP_MEMBER_PFX = QStringLiteral("gm/");
-static const QString MESSAGE_PFX = QStringLiteral("m/");
-static const QString EVENT_PFX = QStringLiteral("e/");
-static const QString PARAM_PFX = QStringLiteral("pp/");
-
-inline QString paramKey(const QString& paramKey)
-{
-    return PERSONA_PFX + paramKey;
-}
-inline QString personaKey(const QString& uid)
-{
-    return PERSONA_PFX + uid;
-}
-inline QString contactKey(const QString& personaUid, const QString& uid)
-{
-    return CONTACT_PFX + personaUid + '/' + uid;
-}
-inline QString contactPrefix(const QString& personaUid)
-{
-    return CONTACT_PFX + personaUid + '/';
-}
-inline QString groupKey(const QString& personaUid, const QString& uid)
-{
-    return GROUP_PFX + personaUid + '/' + uid;
-}
-inline QString groupPrefix(const QString& personaUid)
-{
-    return GROUP_PFX + personaUid + '/';
-}
-inline QString groupMemberKey(const QString& groupUid, const QString& contactUid)
-{
-    return GROUP_MEMBER_PFX + groupUid + '/' + contactUid;
-}
-inline QString groupMemberPrefix(const QString& groupUid)
-{
-    return GROUP_MEMBER_PFX + groupUid + '/';
-}
-inline QString messageKey(const QString& personaUid, qint64 createdMs, const QString& uid)
-{
-    return MESSAGE_PFX + personaUid + '/' + QString::number(createdMs).rightJustified(16, '0') + '/' + uid;
-}
-inline QString messagePrefix(const QString& personaUid)
-{
-    return MESSAGE_PFX + personaUid + '/';
-}
-inline QString eventKey(const QString& personaUid, const QString& uid)
-{
-    return EVENT_PFX + personaUid + '/' + uid;
-}
-inline QString eventPrefix(const QString& personaUid)
-{
-    return EVENT_PFX + personaUid + '/';
-}
-inline QString settingKey(const QString& key)
-{
-    return PARAM_PFX + key;
-}
-} // namespace KV
-
-// ---- Helpers for Timestamp <-> QDateTime -----------------------------------
-namespace {
-
-google::protobuf::Timestamp toTimestamp(const QDateTime& dt)
-{
-    google::protobuf::Timestamp ts;
-    ts.setSeconds(dt.toSecsSinceEpoch());
-    ts.setNanos(dt.time().msec() * 1000000);
-    return ts;
-}
-
-QDateTime fromTimestamp(const google::protobuf::Timestamp& ts)
-{
-    return QDateTime::fromMSecsSinceEpoch(ts.seconds() * 1000 + ts.nanos() / 1000000);
-}
-
-QString timestampToIso(const google::protobuf::Timestamp& ts)
-{
-    return fromTimestamp(ts).toString(Qt::ISODate);
-}
-
-/** @brief Extract epoch milliseconds from a Timestamp for key composition. */
-qint64 timestampToMsEpoch(const google::protobuf::Timestamp& ts)
-{
-    return ts.seconds() * 1000 + ts.nanos() / 1000000;
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 Core* Core::s_pInstance = nullptr;
@@ -158,11 +47,6 @@ Core::~Core()
 // Utility
 // ---------------------------------------------------------------------------
 
-QString Core::newId()
-{
-    return QUuid::createUuid().toString(QUuid::WithoutBraces);
-}
-
 void Core::secureWipe(QByteArray& buf)
 {
     if( buf.isEmpty() )
@@ -182,6 +66,13 @@ void Core::flushProfile()
 {
     if( m_dbkvProfile && m_dbkvProfile->isDatabaseOpen() )
         m_dbkvProfile->flushDatabase();
+}
+
+bool Core::keyExists(const QString& key) const
+{
+    if( !m_dbkvProfile || !m_dbkvProfile->isDatabaseOpen() )
+        return false;
+    return !m_dbkvProfile->listObjects(key).isEmpty();
 }
 
 // ---------------------------------------------------------------------------
@@ -352,7 +243,7 @@ bool Core::openProfile(const QString& password)
     }
 
     asocial::v1::Profile prof;
-    if( !m_dbkvProfile->retrieveObject(KV::PROFILE, prof) ) {
+    if( !m_dbkvProfile->retrieveObject(db::keys::profile(), prof) ) {
         LOG_W() << "No profile record found in KV store";
         m_dbkvProfile->closeDatabase();
         delete m_dbDevice;
@@ -365,7 +256,7 @@ bool Core::openProfile(const QString& password)
 
     m_currentProfileId = prof.uid();
 
-    QStringList personaKeys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
+    QStringList personaKeys = m_dbkvProfile->listObjects(db::keys::persona_prefix());
     for( const QString& key : personaKeys ) {
         asocial::v1::Persona persona;
         if( m_dbkvProfile->retrieveObject(key, persona) ) {
@@ -424,8 +315,8 @@ bool Core::createProfile(const QString& password, const QString& displayName)
         return false;
     }
 
-    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
-    const QString profileId = newId();
+    const auto now = db::toTimestamp(QDateTime::currentDateTimeUtc());
+    const QString profileId = db::newId();
 
     asocial::v1::Profile prof;
     prof.setUid(profileId);
@@ -433,7 +324,7 @@ bool Core::createProfile(const QString& password, const QString& displayName)
     prof.setCreatedAt(now);
     prof.setUpdatedAt(now);
 
-    if( !m_dbkvProfile->storeObject(KV::PROFILE, prof) ) {
+    if( !m_dbkvProfile->storeObject(db::keys::profile(), prof) ) {
         LOG_W() << "Failed to store profile record";
         m_dbkvProfile->closeDatabase();
         delete m_dbDevice;
@@ -444,21 +335,17 @@ bool Core::createProfile(const QString& password, const QString& displayName)
         return false;
     }
 
-    const QString personaId = newId();
-    asocial::v1::Persona defaultPersona;
-    defaultPersona.setUid(personaId);
+    auto defaultPersona = db::createPersona();
     defaultPersona.setProfileUid(profileId);
     defaultPersona.setDisplayName(displayName);
     defaultPersona.setIsDefault(true);
-    defaultPersona.setCreatedAt(now);
-    defaultPersona.setUpdatedAt(now);
 
-    m_dbkvProfile->storeObject(KV::personaKey(personaId), defaultPersona);
+    m_dbkvProfile->storeObject(db::keys::persona(defaultPersona.uid()), defaultPersona);
 
     flushProfile();
 
     m_currentProfileId = profileId;
-    m_activePersonaId = personaId;
+    m_activePersonaId = defaultPersona.uid();
 
     LOG_D() << "Profile created:" << profileId << "name:" << displayName;
     emit profileChanged();
@@ -548,7 +435,7 @@ asocial::v1::Profile Core::getProfile() const
         return {};
 
     asocial::v1::Profile prof;
-    if( !m_dbkvProfile->retrieveObject(KV::PROFILE, prof) )
+    if( !m_dbkvProfile->retrieveObject(db::keys::profile(), prof) )
         return {};
 
     return prof;
@@ -560,9 +447,15 @@ bool Core::storeProfile(const asocial::v1::Profile& profile)
         return false;
 
     auto prof = profile;
-    prof.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+    prof.setUpdatedAt(db::toTimestamp(QDateTime::currentDateTimeUtc()));
 
-    bool ok = m_dbkvProfile->storeObject(KV::PROFILE, prof);
+    auto vr = db::validateProfile(prof);
+    if( !vr.valid ) {
+        LOG_W() << "Profile validation failed:" << vr.toString();
+        return false;
+    }
+
+    bool ok = m_dbkvProfile->storeObject(db::keys::profile(), prof);
     if( ok )
         flushProfile();
     return ok;
@@ -579,10 +472,14 @@ QString Core::currentPersonaName() const
         return {};
 
     asocial::v1::Persona persona;
-    if( m_dbkvProfile->retrieveObject(KV::personaKey(m_activePersonaId), persona) )
+    if( m_dbkvProfile->retrieveObject(db::keys::persona(m_activePersonaId), persona) )
         return persona.displayName();
     return {};
 }
+
+// ---------------------------------------------------------------------------
+// Profile parameters
+// ---------------------------------------------------------------------------
 
 QList<asocial::v1::ProfileParameter> Core::listParams() const
 {
@@ -590,7 +487,7 @@ QList<asocial::v1::ProfileParameter> Core::listParams() const
     if( !isProfileOpen() )
         return result;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::PARAM_PFX);
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::profile_parameter_prefix());
     for( const QString& key : keys ) {
         asocial::v1::ProfileParameter pp;
         if( !m_dbkvProfile->retrieveObject(key, pp) )
@@ -615,7 +512,6 @@ asocial::v1::ProfileParameter Core::createParam(const QString& paramKey)
 
     asocial::v1::ProfileParameter pp;
     pp.setKey(paramKey);
-
     return pp;
 }
 
@@ -625,7 +521,7 @@ asocial::v1::ProfileParameter Core::getParam(const QString& paramKey) const
         return {};
 
     asocial::v1::ProfileParameter pp;
-    if( !m_dbkvProfile->retrieveObject(KV::paramKey(paramKey), pp) )
+    if( !m_dbkvProfile->retrieveObject(db::keys::profile_parameter(paramKey), pp) )
         return {};
 
     return pp;
@@ -636,8 +532,7 @@ bool Core::storeParam(const asocial::v1::ProfileParameter& param)
     if( !isProfileOpen() || param.key().isEmpty() )
         return false;
 
-    auto pp = param;
-    bool ok = m_dbkvProfile->storeObject(KV::personaKey(pp.key()), pp);
+    bool ok = m_dbkvProfile->storeObject(db::keys::profile_parameter(param.key()), param);
     if( ok )
         flushProfile();
     return ok;
@@ -648,7 +543,7 @@ bool Core::deleteParam(const QString& paramKey)
     if( !isProfileOpen() )
         return false;
 
-    bool ok = m_dbkvProfile->deleteObject(KV::paramKey(paramKey));
+    bool ok = m_dbkvProfile->deleteObject(db::keys::profile_parameter(paramKey));
     if( ok )
         flushProfile();
     return ok;
@@ -673,9 +568,6 @@ QByteArray Core::exportProfile(const QString& /*encryptionPassword*/)
         result.append(param.serialize(serializer));
     }
 
-    // TODO: Include profile parameters and everything needed to copy profile minimums to another device
-    // The idea is to init another devices with the same profile to sync them
-
     return result;
 }
 
@@ -699,7 +591,6 @@ bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPass
         return false;
     }
 
-    // Update profile fields
     if( profMap.contains("bio") ) {
         auto prof = getProfile();
         prof.setBio(profMap["bio"].toString());
@@ -715,13 +606,11 @@ bool Core::importProfile(const QByteArray& data, const QString& /*decryptionPass
 // Settings (system-wide, QSettings-backed)
 // ---------------------------------------------------------------------------
 
-// Plugins can only read app settings
 QVariant Core::getSetting(const QString& key) const
 {
     return Settings::I()->setting(key);
 }
 
-// Commented to prevent plugins from manipulating with app settings
 bool Core::setSetting(const QString& key, const QVariant& value)
 {
     Settings::I()->setting(key, value);
@@ -743,7 +632,7 @@ bool Core::setActivePersona(const QString& personaId)
         return false;
 
     asocial::v1::Persona persona;
-    if( m_dbkvProfile->retrieveObject(KV::personaKey(personaId), persona) ) {
+    if( m_dbkvProfile->retrieveObject(db::keys::persona(personaId), persona) ) {
         m_activePersonaId = personaId;
         LOG_D() << "Active persona set to:" << persona.displayName();
         return true;
@@ -766,7 +655,7 @@ QList<asocial::v1::Persona> Core::listPersonas() const
     if( !isProfileOpen() )
         return result;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::PERSONA_PFX);
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::persona_prefix());
     for( const QString& key : keys ) {
         asocial::v1::Persona p;
         if( !m_dbkvProfile->retrieveObject(key, p) )
@@ -790,17 +679,10 @@ asocial::v1::Persona Core::createPersona(const QString& displayName)
     if( !isProfileOpen() )
         return {};
 
-    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
-    const QString uid = newId();
-
-    asocial::v1::Persona p;
-    p.setUid(uid);
+    auto p = db::createPersona();
     p.setProfileUid(m_currentProfileId);
     p.setDisplayName(displayName);
     p.setIsDefault(false);
-    p.setCreatedAt(now);
-    p.setUpdatedAt(now);
-
     return p;
 }
 
@@ -810,7 +692,7 @@ asocial::v1::Persona Core::getPersona(const QString& personaId) const
         return {};
 
     asocial::v1::Persona p;
-    if( !m_dbkvProfile->retrieveObject(KV::personaKey(personaId), p) )
+    if( !m_dbkvProfile->retrieveObject(db::keys::persona(personaId), p) )
         return {};
 
     return p;
@@ -822,9 +704,15 @@ bool Core::storePersona(const asocial::v1::Persona& persona)
         return false;
 
     auto p = persona;
-    p.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+    p.setUpdatedAt(db::toTimestamp(QDateTime::currentDateTimeUtc()));
 
-    bool ok = m_dbkvProfile->storeObject(KV::personaKey(p.uid()), p);
+    auto vr = db::validatePersonaFull(p, [this](const QString& k) { return keyExists(k); });
+    if( !vr.valid ) {
+        LOG_W() << "Persona validation failed:" << vr.toString();
+        return false;
+    }
+
+    bool ok = m_dbkvProfile->storeObject(db::keys::persona(p.uid()), p);
     if( ok )
         flushProfile();
     return ok;
@@ -835,31 +723,30 @@ bool Core::deletePersona(const QString& personaId)
     if( !isProfileOpen() )
         return false;
 
-    // Cascading delete of all dependent entities
-    QStringList contactKeys = m_dbkvProfile->listObjects(KV::contactPrefix(personaId));
+    QStringList contactKeys = m_dbkvProfile->listObjects(db::keys::contact_prefix(personaId));
     for( const QString& key : contactKeys )
         m_dbkvProfile->deleteObject(key);
 
-    QStringList groupKeys = m_dbkvProfile->listObjects(KV::groupPrefix(personaId));
+    QStringList groupKeys = m_dbkvProfile->listObjects(db::keys::group_prefix(personaId));
     for( const QString& key : groupKeys ) {
         asocial::v1::Group g;
         if( m_dbkvProfile->retrieveObject(key, g) ) {
-            QStringList memberKeys = m_dbkvProfile->listObjects(KV::groupMemberPrefix(g.uid()));
+            QStringList memberKeys = m_dbkvProfile->listObjects(db::keys::group_member_prefix(g.uid()));
             for( const QString& mk : memberKeys )
                 m_dbkvProfile->deleteObject(mk);
         }
         m_dbkvProfile->deleteObject(key);
     }
 
-    QStringList msgKeys = m_dbkvProfile->listObjects(KV::messagePrefix(personaId));
+    QStringList msgKeys = m_dbkvProfile->listObjects(db::keys::message_prefix(personaId));
     for( const QString& key : msgKeys )
         m_dbkvProfile->deleteObject(key);
 
-    QStringList evtKeys = m_dbkvProfile->listObjects(KV::eventPrefix(personaId));
+    QStringList evtKeys = m_dbkvProfile->listObjects(db::keys::event_prefix(personaId));
     for( const QString& key : evtKeys )
         m_dbkvProfile->deleteObject(key);
 
-    bool ok = m_dbkvProfile->deleteObject(KV::personaKey(personaId));
+    bool ok = m_dbkvProfile->deleteObject(db::keys::persona(personaId));
     if( ok )
         flushProfile();
     return ok;
@@ -875,7 +762,7 @@ QList<asocial::v1::Contact> Core::listContacts() const
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return result;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::contactPrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::contact_prefix(m_activePersonaId));
     for( const QString& key : keys ) {
         asocial::v1::Contact c;
         if( !m_dbkvProfile->retrieveObject(key, c) )
@@ -894,16 +781,9 @@ asocial::v1::Contact Core::createContact(const QString& displayName)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return {};
 
-    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
-    const QString uid = newId();
-
-    asocial::v1::Contact c;
-    c.setUid(uid);
+    auto c = db::createContact();
     c.setPersonaUid(m_activePersonaId);
     c.setDisplayName(displayName);
-    c.setCreatedAt(now);
-    c.setUpdatedAt(now);
-
     return c;
 }
 
@@ -913,7 +793,7 @@ asocial::v1::Contact Core::getContact(const QString& contactId) const
         return {};
 
     asocial::v1::Contact c;
-    if( !m_dbkvProfile->retrieveObject(KV::contactKey(m_activePersonaId, contactId), c) )
+    if( !m_dbkvProfile->retrieveObject(db::keys::contact(m_activePersonaId, contactId), c) )
         return {};
 
     return c;
@@ -925,9 +805,15 @@ bool Core::storeContact(const asocial::v1::Contact& contact)
         return false;
 
     auto c = contact;
-    c.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+    c.setUpdatedAt(db::toTimestamp(QDateTime::currentDateTimeUtc()));
 
-    bool ok = m_dbkvProfile->storeObject(KV::contactKey(c.personaUid(), c.uid()), c);
+    auto vr = db::validateContactFull(c, [this](const QString& k) { return keyExists(k); });
+    if( !vr.valid ) {
+        LOG_W() << "Contact validation failed:" << vr.toString();
+        return false;
+    }
+
+    bool ok = m_dbkvProfile->storeObject(db::keys::contact(c.personaUid(), c.uid()), c);
     if( ok )
         flushProfile();
     return ok;
@@ -938,7 +824,7 @@ bool Core::deleteContact(const QString& contactId)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return false;
 
-    bool ok = m_dbkvProfile->deleteObject(KV::contactKey(m_activePersonaId, contactId));
+    bool ok = m_dbkvProfile->deleteObject(db::keys::contact(m_activePersonaId, contactId));
     if( ok )
         flushProfile();
     return ok;
@@ -951,7 +837,7 @@ QList<asocial::v1::Contact> Core::searchContacts(const QString& query) const
         return result;
 
     const QString lowerQuery = query.toLower();
-    QStringList keys = m_dbkvProfile->listObjects(KV::contactPrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::contact_prefix(m_activePersonaId));
     for( const QString& key : keys ) {
         asocial::v1::Contact c;
         if( !m_dbkvProfile->retrieveObject(key, c) )
@@ -972,7 +858,7 @@ QList<asocial::v1::Group> Core::listGroups() const
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return result;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::groupPrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::group_prefix(m_activePersonaId));
     for( const QString& key : keys ) {
         asocial::v1::Group g;
         if( !m_dbkvProfile->retrieveObject(key, g) )
@@ -991,16 +877,9 @@ asocial::v1::Group Core::createGroup(const QString& name)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return {};
 
-    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
-    const QString uid = newId();
-
-    asocial::v1::Group g;
-    g.setUid(uid);
+    auto g = db::createGroup();
     g.setPersonaUid(m_activePersonaId);
     g.setName(name);
-    g.setCreatedAt(now);
-    g.setUpdatedAt(now);
-
     return g;
 }
 
@@ -1010,7 +889,7 @@ asocial::v1::Group Core::getGroup(const QString& groupId) const
         return {};
 
     asocial::v1::Group g;
-    if( !m_dbkvProfile->retrieveObject(KV::groupKey(m_activePersonaId, groupId), g) )
+    if( !m_dbkvProfile->retrieveObject(db::keys::group(m_activePersonaId, groupId), g) )
         return {};
 
     return g;
@@ -1022,9 +901,15 @@ bool Core::storeGroup(const asocial::v1::Group& group)
         return false;
 
     auto g = group;
-    g.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+    g.setUpdatedAt(db::toTimestamp(QDateTime::currentDateTimeUtc()));
 
-    bool ok = m_dbkvProfile->storeObject(KV::groupKey(g.personaUid(), g.uid()), g);
+    auto vr = db::validateGroupFull(g, [this](const QString& k) { return keyExists(k); });
+    if( !vr.valid ) {
+        LOG_W() << "Group validation failed:" << vr.toString();
+        return false;
+    }
+
+    bool ok = m_dbkvProfile->storeObject(db::keys::group(g.personaUid(), g.uid()), g);
     if( ok )
         flushProfile();
     return ok;
@@ -1035,11 +920,11 @@ bool Core::deleteGroup(const QString& groupId)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return false;
 
-    QStringList memberKeys = m_dbkvProfile->listObjects(KV::groupMemberPrefix(groupId));
+    QStringList memberKeys = m_dbkvProfile->listObjects(db::keys::group_member_prefix(groupId));
     for( const QString& mk : memberKeys )
         m_dbkvProfile->deleteObject(mk);
 
-    bool ok = m_dbkvProfile->deleteObject(KV::groupKey(m_activePersonaId, groupId));
+    bool ok = m_dbkvProfile->deleteObject(db::keys::group(m_activePersonaId, groupId));
     if( ok )
         flushProfile();
     return ok;
@@ -1050,14 +935,19 @@ bool Core::addGroupMember(const QString& groupId, const QString& contactId)
     if( !isProfileOpen() )
         return false;
 
-    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
-    asocial::v1::GroupMember gm;
+    auto gm = db::createGroupMember();
     gm.setGroupUid(groupId);
     gm.setContactUid(contactId);
     gm.setRole(QStringLiteral("member"));
-    gm.setJoinedAt(now);
+    gm.setJoinedAt(db::toTimestamp(QDateTime::currentDateTimeUtc()));
 
-    bool ok = m_dbkvProfile->storeObject(KV::groupMemberKey(groupId, contactId), gm);
+    auto vr = db::validateGroupMemberFull(gm, [this](const QString& k) { return keyExists(k); });
+    if( !vr.valid ) {
+        LOG_W() << "GroupMember validation failed:" << vr.toString();
+        return false;
+    }
+
+    bool ok = m_dbkvProfile->storeObject(db::keys::group_member(groupId, contactId), gm);
     if( ok )
         flushProfile();
     return ok;
@@ -1068,7 +958,7 @@ bool Core::removeGroupMember(const QString& groupId, const QString& contactId)
     if( !isProfileOpen() )
         return false;
 
-    bool ok = m_dbkvProfile->deleteObject(KV::groupMemberKey(groupId, contactId));
+    bool ok = m_dbkvProfile->deleteObject(db::keys::group_member(groupId, contactId));
     if( ok )
         flushProfile();
     return ok;
@@ -1080,7 +970,7 @@ QList<asocial::v1::GroupMember> Core::listGroupMembers(const QString& groupId) c
     if( !isProfileOpen() )
         return result;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::groupMemberPrefix(groupId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::group_member_prefix(groupId));
     for( const QString& key : keys ) {
         asocial::v1::GroupMember gm;
         if( !m_dbkvProfile->retrieveObject(key, gm) )
@@ -1100,10 +990,8 @@ QList<asocial::v1::Message> Core::listMessages(int limit) const
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return result;
 
-    // Keys are time-ordered thanks to the zero-padded millisecond prefix
-    QStringList keys = m_dbkvProfile->listObjects(KV::messagePrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::message_prefix(m_activePersonaId));
 
-    // Iterate in reverse for newest-first
     for( int i = keys.size() - 1; i >= 0 && result.size() < limit; --i ) {
         asocial::v1::Message m;
         if( !m_dbkvProfile->retrieveObject(keys[i], m) )
@@ -1118,19 +1006,12 @@ asocial::v1::Message Core::createMessage(const QString& recipientId, const QStri
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return {};
 
-    const QDateTime now = QDateTime::currentDateTimeUtc();
-    const auto ts = toTimestamp(now);
-    const QString uid = newId();
-
-    asocial::v1::Message msg;
-    msg.setUid(uid);
+    auto msg = db::createMessage();
     msg.setPersonaUid(m_activePersonaId);
-    msg.setThreadUid(newId());
+    msg.setThreadUid(db::newId());
     msg.setRecipientType(recipientType);
     msg.setRecipientUid(recipientId);
     msg.setBody(body);
-    msg.setCreatedAt(ts);
-
     return msg;
 }
 
@@ -1139,7 +1020,7 @@ asocial::v1::Message Core::getMessage(const QString& messageId) const
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return {};
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::messagePrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::message_prefix(m_activePersonaId));
     for( const QString& key : keys ) {
         asocial::v1::Message m;
         if( !m_dbkvProfile->retrieveObject(key, m) )
@@ -1155,8 +1036,14 @@ bool Core::storeMessage(const asocial::v1::Message& message)
     if( !isProfileOpen() || message.uid().isEmpty() || message.personaUid().isEmpty() )
         return false;
 
-    const qint64 msEpoch = timestampToMsEpoch(message.createdAt());
-    const QString key = KV::messageKey(message.personaUid(), msEpoch, message.uid());
+    const QString createdAtIso = db::timestampToIsoKey(message.createdAt());
+    const QString key = db::keys::message(message.personaUid(), createdAtIso, message.uid());
+
+    auto vr = db::validateMessageFull(message, [this](const QString& k) { return keyExists(k); });
+    if( !vr.valid ) {
+        LOG_W() << "Message validation failed:" << vr.toString();
+        return false;
+    }
 
     bool ok = m_dbkvProfile->storeObject(key, message);
     if( ok )
@@ -1169,7 +1056,7 @@ bool Core::deleteMessage(const QString& messageId)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return false;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::messagePrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::message_prefix(m_activePersonaId));
     for( const QString& key : keys ) {
         if( key.endsWith('/' + messageId) ) {
             bool ok = m_dbkvProfile->deleteObject(key);
@@ -1191,7 +1078,7 @@ QList<asocial::v1::Event> Core::listEvents() const
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return result;
 
-    QStringList keys = m_dbkvProfile->listObjects(KV::eventPrefix(m_activePersonaId));
+    QStringList keys = m_dbkvProfile->listObjects(db::keys::event_prefix(m_activePersonaId));
     for( const QString& key : keys ) {
         asocial::v1::Event e;
         if( !m_dbkvProfile->retrieveObject(key, e) )
@@ -1200,8 +1087,8 @@ QList<asocial::v1::Event> Core::listEvents() const
     }
 
     std::sort(result.begin(), result.end(), [](const asocial::v1::Event& a, const asocial::v1::Event& b) {
-        QString dateA = a.hasStarted() ? timestampToIso(a.started()) : QString();
-        QString dateB = b.hasStarted() ? timestampToIso(b.started()) : QString();
+        QString dateA = a.hasStarted() ? db::timestampToIso(a.started()) : QString();
+        QString dateB = b.hasStarted() ? db::timestampToIso(b.started()) : QString();
         return dateA > dateB;
     });
     return result;
@@ -1212,21 +1099,15 @@ asocial::v1::Event Core::createEvent(const QString& title, const QString& date)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return {};
 
-    const auto now = toTimestamp(QDateTime::currentDateTimeUtc());
-    const QString uid = newId();
-
-    asocial::v1::Event e;
-    e.setUid(uid);
+    auto e = db::createEvent();
     e.setPersonaUid(m_activePersonaId);
     e.setTitle(title);
-    e.setCreatedAt(now);
-    e.setUpdatedAt(now);
 
     QDateTime dt = QDateTime::fromString(date, Qt::ISODate);
     if( !dt.isValid() )
         dt = QDateTime::fromString(date, QStringLiteral("yyyy-MM-dd"));
     if( dt.isValid() )
-        e.setStarted(toTimestamp(dt));
+        e.setStarted(db::toTimestamp(dt));
 
     return e;
 }
@@ -1237,7 +1118,7 @@ asocial::v1::Event Core::getEvent(const QString& eventId) const
         return {};
 
     asocial::v1::Event e;
-    if( !m_dbkvProfile->retrieveObject(KV::eventKey(m_activePersonaId, eventId), e) )
+    if( !m_dbkvProfile->retrieveObject(db::keys::event(m_activePersonaId, eventId), e) )
         return {};
 
     return e;
@@ -1249,9 +1130,15 @@ bool Core::storeEvent(const asocial::v1::Event& event)
         return false;
 
     auto e = event;
-    e.setUpdatedAt(toTimestamp(QDateTime::currentDateTimeUtc()));
+    e.setUpdatedAt(db::toTimestamp(QDateTime::currentDateTimeUtc()));
 
-    bool ok = m_dbkvProfile->storeObject(KV::eventKey(e.personaUid(), e.uid()), e);
+    auto vr = db::validateEventFull(e, [this](const QString& k) { return keyExists(k); });
+    if( !vr.valid ) {
+        LOG_W() << "Event validation failed:" << vr.toString();
+        return false;
+    }
+
+    bool ok = m_dbkvProfile->storeObject(db::keys::event(e.personaUid(), e.uid()), e);
     if( ok )
         flushProfile();
     return ok;
@@ -1262,7 +1149,7 @@ bool Core::deleteEvent(const QString& eventId)
     if( !isProfileOpen() || m_activePersonaId.isEmpty() )
         return false;
 
-    bool ok = m_dbkvProfile->deleteObject(KV::eventKey(m_activePersonaId, eventId));
+    bool ok = m_dbkvProfile->deleteObject(db::keys::event(m_activePersonaId, eventId));
     if( ok )
         flushProfile();
     return ok;
@@ -1285,7 +1172,6 @@ void Core::exit()
 
 void Core::init()
 {
-    // Open container if it already exists
     QString container_path = Settings::I()->setting("vfs.container.path").toString();
     if( QFile::exists(container_path) ) {
         createContainer(container_path, 0);

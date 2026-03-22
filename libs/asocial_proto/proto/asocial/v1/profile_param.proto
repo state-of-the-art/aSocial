@@ -7,9 +7,17 @@ syntax = "proto3";
 
 package asocial.v1;
 
+import "asocial/v1/options_deps.proto";
+
 // Generic key/value pair inside the profile database.
 message ProfileParameter
 {
+    option (entity_config) = {
+        key_prefix: "pp"
+        key_pattern: "{key}"
+        sort_field: "key"
+    };
+
     string key = 1;   // Dotted path, e.g. "ui.theme"
     string value = 2; // JSON-encoded value
 }

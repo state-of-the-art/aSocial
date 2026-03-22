@@ -26,16 +26,10 @@
 /**
  * @brief Permission-gated proxy that wraps a real CoreInterface.
  *
- * Each plugin receives its own CoreAccessProxy instance configured with
- * the PluginPermissions that the platform has granted.  Every method
- * first checks the corresponding permission flag; denied calls are
- * logged with a warning and return safe default / error values.
- *
- * The proxy owns no resources — it holds a non-owning pointer to the
- * actual Core singleton whose lifetime is managed by the application.
- *
- * Temporary QByteArray buffers produced during export/import are
- * overwritten with random bytes before deallocation (secure wipe).
+ * Each plugin receives its own CoreAccessProxy configured with
+ * PluginPermissions flags (which map to the generated AccessCategory
+ * system). Every method checks the corresponding permission; denied
+ * calls are logged and return safe defaults.
  */
 class CoreAccessProxy : public QObject, public CoreInterface
 {
@@ -55,62 +49,51 @@ public:
 
     ~CoreAccessProxy() override;
 
-    /** @brief Return the effective permission mask. */
     PluginPermissions grantedPermissions() const { return m_granted; }
 
     // ---- CoreInterface implementation (all gated) -------------------------
 
-    // Plugin accessors
     DBKVPluginInterface* getDBKV() const override;
     DBKVPluginInterface* getDBKVProfile() const override;
     VFSPluginInterface* getVFS() const override;
 
-    // Container lifecycle
     bool createContainer(const QString& path, quint64 maxSizeBytes = 0) override;
     bool isContainerInitialized() const override;
     QString containerPath() const override;
 
-    // Profile lifecycle
     bool openProfile(const QString& password) override;
     bool createProfile(const QString& password, const QString& displayName) override;
     void closeProfile() override;
     bool isProfileOpen() const override;
     bool deleteCurrentProfile(std::function<void(int)> progress = nullptr) override;
 
-    // Export / import
     QByteArray exportProfile(const QString& encryptionPassword = QString()) override;
     bool importProfile(const QByteArray& data, const QString& decryptionPassword, const QString& vfsPassword) override;
 
-    // App Settings
     QVariant getSetting(const QString& key) const override;
     bool setSetting(const QString& key, const QVariant& value) override;
     QStringList listSettings() const override;
 
-    // Profile data
     asocial::v1::Profile getProfile() const override;
     bool storeProfile(const asocial::v1::Profile& profile) override;
     QString getCurrentProfileId() const override;
     QString currentPersonaName() const override;
 
-    // Profile param
     QList<asocial::v1::ProfileParameter> listParams() const override;
     asocial::v1::ProfileParameter createParam(const QString& paramKey) override;
     asocial::v1::ProfileParameter getParam(const QString& paramKey) const override;
     bool storeParam(const asocial::v1::ProfileParameter& param) override;
     bool deleteParam(const QString& paramKey) override;
 
-    // Active persona
     bool setActivePersona(const QString& personaId) override;
     QString activePersonaId() const override;
 
-    // Persona CRUD
     QList<asocial::v1::Persona> listPersonas() const override;
     asocial::v1::Persona createPersona(const QString& displayName) override;
     asocial::v1::Persona getPersona(const QString& personaId) const override;
     bool storePersona(const asocial::v1::Persona& persona) override;
     bool deletePersona(const QString& personaId) override;
 
-    // Contact CRUD
     QList<asocial::v1::Contact> listContacts() const override;
     asocial::v1::Contact createContact(const QString& displayName) override;
     asocial::v1::Contact getContact(const QString& contactId) const override;
@@ -118,7 +101,6 @@ public:
     bool deleteContact(const QString& contactId) override;
     QList<asocial::v1::Contact> searchContacts(const QString& query) const override;
 
-    // Group CRUD
     QList<asocial::v1::Group> listGroups() const override;
     asocial::v1::Group createGroup(const QString& name) override;
     asocial::v1::Group getGroup(const QString& groupId) const override;
@@ -128,7 +110,6 @@ public:
     bool removeGroupMember(const QString& groupId, const QString& contactId) override;
     QList<asocial::v1::GroupMember> listGroupMembers(const QString& groupId) const override;
 
-    // Message CRUD
     QList<asocial::v1::Message> listMessages(int limit = 50) const override;
     asocial::v1::Message createMessage(
         const QString& recipientId,
@@ -138,29 +119,19 @@ public:
     bool storeMessage(const asocial::v1::Message& message) override;
     bool deleteMessage(const QString& messageId) override;
 
-    // Event CRUD
     QList<asocial::v1::Event> listEvents() const override;
     asocial::v1::Event createEvent(const QString& title, const QString& date) override;
     asocial::v1::Event getEvent(const QString& eventId) const override;
     bool storeEvent(const asocial::v1::Event& event) override;
     bool deleteEvent(const QString& eventId) override;
 
-    // App
     void exit() override;
 
 signals:
     void profileChanged() override;
 
 private:
-    /**
-     * @brief Check whether a single permission flag is granted.
-     * @param perm  The capability to test.
-     * @param method  Caller name for the log message.
-     * @return true if permitted.
-     */
     bool check(PluginPermission perm, const char* method) const;
-
-    /** @brief Overwrite @p buf with random bytes, then clear it. */
     static void secureWipe(QByteArray& buf);
 
     CoreInterface* m_real;

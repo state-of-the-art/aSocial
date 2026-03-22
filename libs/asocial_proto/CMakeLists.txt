@@ -23,11 +23,12 @@ project(asocial_proto LANGUAGES C)
 include(${CMAKE_CURRENT_LIST_DIR}/../../common.cmake)
 
 find_package(Qt6 REQUIRED COMPONENTS Protobuf ProtobufWellKnownTypes)
+find_package(Protobuf REQUIRED)
 
 # We have to generate the files separately, otherwise it will spit out tons of errors
-file(GLOB_RECURSE Google_PROTO RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "proto/google/*.proto")
+# Unfortunately Qt6.10.1 doesn't have a generated descriptor, so creating it now
 qt_add_protobuf(${PROJECT_NAME}
-  PROTO_FILES ${Google_PROTO}
+  PROTO_FILES "${Protobuf_INCLUDE_DIR}/google/protobuf/descriptor.proto"
   PROTO_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/proto"
   GENERATE_PACKAGE_SUBFOLDERS
   OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proto"
@@ -57,18 +58,52 @@ qt_add_protobuf(${PROJECT_NAME}
   OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/proto"
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Qt::Protobuf Qt::ProtobufWellKnownTypes )
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/proto ${PROJECT_NAME}_coredb)
+target_link_libraries(${PROJECT_NAME} PUBLIC Qt::Protobuf Qt::ProtobufWellKnownTypes)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/proto)
 
-# Custom generator for typical coredb operations
-protobuf_generate(
-    TARGET ${PROJECT_NAME}
-    LANGUAGE coredb
-    DEPENDENCIES protoc-gen-coredb
-    PROTOS ${ASocial_PROTO}
-    PLUGIN "protoc-gen-coredb=$<TARGET_FILE:protoc-gen-coredb>" # "$<TARGET_FILE:protoc-gen-coredb>" # "${CMAKE_BINARY_DIR}/libs_build/asocial_protogen/protoc-gen-coredb" #"${EXECUTABLE_PATH_PROTOC_GEN_COREDB}"
-    #PROTOC_OPTIONS "--coredb_out=${CMAKE_CURRENT_BINARY_DIR}"
-    PROTOC_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated"
-    IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/proto"
-    GENERATE_EXTENSIONS .proto.gen.h
+# protoc-gen-coredb: one protoc invocation with all entity protos so the pool contains every file
+set(COREDB_GEN_DIR "${CMAKE_BINARY_DIR}/proto")
+set(COREDB_ENTITY_RELS "")
+foreach(_p IN LISTS ASocial_PROTO)
+  string(REGEX REPLACE "^proto/" "" _rel "${_p}")
+  list(APPEND COREDB_ENTITY_RELS "${_rel}")
+endforeach()
+list(SORT COREDB_ENTITY_RELS)
+list(GET COREDB_ENTITY_RELS 0 COREDB_ANCHOR_REL)
+list(JOIN COREDB_ENTITY_RELS "," COREDB_ENTITY_FILES_OPT)
+set(COREDB_PLUGIN_OPT "entity_files=${COREDB_ENTITY_FILES_OPT}")
+
+get_filename_component(COREDB_ANCHOR_DIR "${COREDB_ANCHOR_REL}" DIRECTORY)
+set(COREDB_GEN_OUTS
+  "${COREDB_GEN_DIR}/${COREDB_ANCHOR_DIR}/coredb.gen.h"
+  "${COREDB_GEN_DIR}/${COREDB_ANCHOR_DIR}/coredb.gen.cpp"
+  "${COREDB_GEN_DIR}/${COREDB_ANCHOR_DIR}/common.coredb.gen.h"
+  "${COREDB_GEN_DIR}/${COREDB_ANCHOR_DIR}/common.coredb.gen.cpp"
 )
+foreach(_rel IN LISTS COREDB_ENTITY_RELS)
+  string(REPLACE ".proto" ".coredb.gen" _rel_rep "${_rel}")
+  list(APPEND COREDB_GEN_OUTS "${COREDB_GEN_DIR}/${_rel_rep}.h")
+  list(APPEND COREDB_GEN_OUTS "${COREDB_GEN_DIR}/${_rel_rep}.cpp")
+endforeach()
+
+set(COREDB_PROTO_INPUTS "")
+foreach(_rel IN LISTS COREDB_ENTITY_RELS)
+  list(APPEND COREDB_PROTO_INPUTS "${CMAKE_CURRENT_SOURCE_DIR}/proto/${_rel}")
+endforeach()
+
+add_custom_command(
+  OUTPUT ${COREDB_GEN_OUTS}
+  COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+    --plugin=protoc-gen-coredb=$<TARGET_FILE:protoc-gen-coredb>
+    "--coredb_out=${COREDB_GEN_DIR}"
+    "--coredb_opt=${COREDB_PLUGIN_OPT}"
+    -I "${CMAKE_CURRENT_SOURCE_DIR}/proto"
+    ${COREDB_ENTITY_RELS}
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/proto"
+  DEPENDS ${COREDB_PROTO_INPUTS} protoc-gen-coredb
+  COMMENT "Running protoc-gen-coredb (combined entity_files)"
+  VERBATIM
+)
+
+target_sources(${PROJECT_NAME} PRIVATE ${COREDB_GEN_OUTS})
+set_source_files_properties(${COREDB_GEN_OUTS} PROPERTIES GENERATED TRUE)
